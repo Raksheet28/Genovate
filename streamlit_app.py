@@ -18,8 +18,25 @@ for treating gene mutations like **PKD1**, **PKD2**, and **PKHD1**.
 
 # Input section
 st.header("1️⃣ Input Your Case")
-organ = st.selectbox("Select Target Organ:", ["Kidney", "Liver"])
-mutation = st.selectbox("Select Gene Mutation:", ["PKD1", "PKD2", "PKHD1"])
+
+# Organ-to-Mutations mapping
+organ_gene_map = {
+    "Kidney": ["PKD1", "PKD2", "PKHD1"],
+    "Liver": ["ATP7B", "FAH", "TTR"],
+    "Heart": ["MYBPC3", "TNNT2", "MYH7"],
+    "Lung": ["CFTR", "AATD"],
+    "Brain": ["HTT", "MECP2", "SCN1A"],
+    "Eye": ["RPE65", "RPGR"],
+    "Pancreas": ["INS", "PDX1"]
+}
+
+# First dropdown: Organ
+organ = st.selectbox("Select Target Organ:", list(organ_gene_map.keys()))
+
+# Second dropdown: Mutation (filtered)
+possible_mutations = organ_gene_map[organ]
+mutation = st.selectbox("Select Gene Mutation:", possible_mutations)
+
 therapy_type = st.radio("Therapy Type:", ["Ex vivo", "In vivo"])
 
 st.subheader("Clinical Parameters")
@@ -30,7 +47,7 @@ cost = st.select_slider("Cost & Scalability (1=Low Cost, 5=High Cost)", options=
 
 if st.button("🔍 Predict Best Delivery Method"):
     recommendation = predict_method(model, le_mut, le_org, le_method, mutation, organ, eff, off, viability, cost)
-    st.success(f"🚀 Recommended Delivery Method: **{recommendation}**")
+    st.success(f" Recommended Delivery Method: **{recommendation}**")
 
     # Display a basic bar chart comparing values
     methods = ["Lipid Nanoparticles", "Electroporation"]
