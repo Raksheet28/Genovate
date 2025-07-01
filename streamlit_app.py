@@ -2,6 +2,8 @@
 
 import streamlit as st
 import matplotlib.pyplot as plt
+import numpy as np
+from math import pi
 from genovate_backend import load_data, train_model, predict_method, find_pam_sites
 
 # Load and train model
@@ -18,8 +20,6 @@ for treating gene mutations like **PKD1**, **PKD2**, and **PKHD1**.
 
 # Input section
 st.header("1️⃣ Input Your Case")
-
-# Organ-to-Mutations mapping
 organ_gene_map = {
     "Kidney": ["PKD1", "PKD2", "PKHD1"],
     "Liver": ["ATP7B", "FAH", "TTR"],
@@ -29,14 +29,8 @@ organ_gene_map = {
     "Eye": ["RPE65", "RPGR"],
     "Pancreas": ["INS", "PDX1"]
 }
-
-# First dropdown: Organ
 organ = st.selectbox("Select Target Organ:", list(organ_gene_map.keys()))
-
-# Second dropdown: Mutation (filtered)
-possible_mutations = organ_gene_map[organ]
-mutation = st.selectbox("Select Gene Mutation:", possible_mutations)
-
+mutation = st.selectbox("Select Gene Mutation:", organ_gene_map[organ])
 therapy_type = st.radio("Therapy Type:", ["Ex vivo", "In vivo"])
 
 st.subheader("Clinical Parameters")
@@ -49,28 +43,41 @@ if st.button("🔍 Predict Best Delivery Method"):
     recommendation = predict_method(model, le_mut, le_org, le_method, mutation, organ, eff, off, viability, cost)
     st.success(f" Recommended Delivery Method: **{recommendation}**")
 
-    # Display a basic bar chart comparing values
-    methods = ["Lipid Nanoparticles", "Electroporation"]
-    if recommendation == "LNP":
-        values = [eff, 0.85]
-        risks = [off, 0.12]
-        viability_vals = [viability, 0.75]
-    else:
-        values = [0.72, eff]
-        risks = [0.07, off]
-        viability_vals = [0.92, viability]
+    # Radar chart for comparison
+    st.subheader("📊 Comparison Radar Chart")
 
-    st.subheader("📊 Comparison Chart")
-    fig, ax = plt.subplots()
-    bar_width = 0.25
-    x = range(len(methods))
-    ax.bar(x, values, bar_width, label="Efficiency")
-    ax.bar([i + bar_width for i in x], risks, bar_width, label="Off-Target Risk")
-    ax.bar([i + 2*bar_width for i in x], viability_vals, bar_width, label="Viability")
-    ax.set_xticks([i + bar_width for i in x])
-    ax.set_xticklabels(methods)
-    ax.set_ylim(0, 1.2)
-    ax.legend()
+    categories = ['Efficiency', 'Off-Target Risk', 'Viability']
+    N = len(categories)
+
+    # Mock baseline values
+    if recommendation == "LNP":
+        method_scores = [eff, off, viability]
+        alt_scores = [0.85, 0.12, 0.75]
+        labels = ['LNP (Input)', 'Electroporation (Baseline)']
+    else:
+        method_scores = [0.72, 0.07, 0.92]
+        alt_scores = [eff, off, viability]
+        labels = ['LNP (Baseline)', 'Electroporation (Input)']
+
+    values_1 = method_scores + [method_scores[0]]
+    values_2 = alt_scores + [alt_scores[0]]
+
+    angles = [n / float(N) * 2 * pi for n in range(N)]
+    angles += angles[:1]
+
+    fig, ax = plt.subplots(figsize=(6, 6), subplot_kw=dict(polar=True))
+    ax.set_theta_offset(pi / 2)
+    ax.set_theta_direction(-1)
+
+    plt.xticks(angles[:-1], categories)
+    ax.plot(angles, values_1, linewidth=2, linestyle='solid', label=labels[0])
+    ax.fill(angles, values_1, alpha=0.25)
+
+    ax.plot(angles, values_2, linewidth=2, linestyle='solid', label=labels[1])
+    ax.fill(angles, values_2, alpha=0.25)
+
+    ax.set_ylim(0, 1)
+    plt.legend(loc='upper right', bbox_to_anchor=(0.1, 0.1))
     st.pyplot(fig)
 
 # PAM Finder
