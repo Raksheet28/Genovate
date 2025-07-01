@@ -6,58 +6,45 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 
-# Load or simulate data (replace with real data or CSV if needed)
+# Load or simulate data (expanded for Genovate)
 def load_data():
     np.random.seed(42)
     num_samples = 300
-    mutations = np.random.choice([
-        'PKD1', 'PKD2', 'PKHD1',           # Kidney
-        'ATP7B', 'FAH', 'TTR',             # Liver
-        'MYBPC3', 'TNNT2', 'MYH7',         # Heart
-        'CFTR', 'AATD',                    # Lung
-        'HTT', 'MECP2', 'SCN1A',           # Brain
-        'RPE65', 'RPGR',                   # Eye
-        'INS', 'PDX1'                      # Pancreas
-    ], num_samples)
 
-    organs_map = {
-        'PKD1': 'Kidney', 'PKD2': 'Kidney', 'PKHD1': 'Kidney',
-        'ATP7B': 'Liver', 'FAH': 'Liver', 'TTR': 'Liver',
-        'MYBPC3': 'Heart', 'TNNT2': 'Heart', 'MYH7': 'Heart',
-        'CFTR': 'Lung', 'AATD': 'Lung',
-        'HTT': 'Brain', 'MECP2': 'Brain', 'SCN1A': 'Brain',
-        'RPE65': 'Eye', 'RPGR': 'Eye',
-        'INS': 'Pancreas', 'PDX1': 'Pancreas'
+    organ_gene_map = {
+        "Kidney": ["PKD1", "PKD2", "PKHD1"],
+        "Liver": ["ATP7B", "FAH", "TTR"],
+        "Heart": ["MYBPC3", "TNNT2", "MYH7"],
+        "Lung": ["CFTR", "AATD"],
+        "Brain": ["HTT", "MECP2", "SCN1A"],
+        "Eye": ["RPE65", "RPGR"],
+        "Pancreas": ["INS", "PDX1"]
     }
-    organs = [organs_map[m] for m in mutations]
-    methods = np.random.choice(['LNP', 'Electroporation'], num_samples)
 
-    efficiency = np.where(methods == 'LNP',
-                          np.random.normal(0.72, 0.05, num_samples),
-                          np.random.normal(0.85, 0.04, num_samples))
+    delivery_methods = ['LNP', 'Electroporation']
 
-    off_target = np.where(methods == 'LNP',
-                          np.random.normal(0.07, 0.02, num_samples),
-                          np.random.normal(0.12, 0.03, num_samples))
+    all_data = []
 
-    cell_viability = np.where(methods == 'LNP',
-                              np.random.normal(0.92, 0.03, num_samples),
-                              np.random.normal(0.75, 0.05, num_samples))
+    for _ in range(num_samples):
+        organ = np.random.choice(list(organ_gene_map.keys()))
+        mutation = np.random.choice(organ_gene_map[organ])
+        method = np.random.choice(delivery_methods)
 
-    cost = np.where(methods == 'LNP',
-                    np.random.randint(1, 3, num_samples),
-                    np.random.randint(3, 5, num_samples))
+        if method == 'LNP':
+            efficiency = np.clip(np.random.normal(0.72, 0.05), 0, 1)
+            off_target = np.clip(np.random.normal(0.07, 0.02), 0, 1)
+            viability = np.clip(np.random.normal(0.92, 0.03), 0, 1)
+            cost = np.random.randint(1, 3)
+        else:
+            efficiency = np.clip(np.random.normal(0.85, 0.04), 0, 1)
+            off_target = np.clip(np.random.normal(0.12, 0.03), 0, 1)
+            viability = np.clip(np.random.normal(0.75, 0.05), 0, 1)
+            cost = np.random.randint(3, 5)
 
-    data = pd.DataFrame({
-        "Mutation": mutations,
-        "TargetOrgan": organs,
-        "DeliveryMethod": methods,
-        "Efficiency": np.clip(efficiency, 0, 1),
-        "OffTargetRisk": np.clip(off_target, 0, 1),
-        "CellViability": np.clip(cell_viability, 0, 1),
-        "Cost": cost
-    })
-    return data
+        all_data.append([mutation, organ, method, efficiency, off_target, viability, cost])
+
+    df = pd.DataFrame(all_data, columns=["Mutation", "TargetOrgan", "DeliveryMethod", "Efficiency", "OffTargetRisk", "CellViability", "Cost"])
+    return df
 
 # Prepare and train model
 def train_model(data):
@@ -96,3 +83,6 @@ def find_pam_sites(dna_sequence, pam="NGG"):
         if match:
             pam_sites.append((i, window))
     return pam_sites
+
+# Footer
+# Developed by Raksheet Gummakonda for Genovate
