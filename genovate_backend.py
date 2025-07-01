@@ -9,9 +9,27 @@ from sklearn.preprocessing import LabelEncoder
 # Load or simulate data (replace with real data or CSV if needed)
 def load_data():
     np.random.seed(42)
-    num_samples = 200
-    mutations = np.random.choice(['PKD1', 'PKD2', 'PKHD1'], num_samples)
-    organs = np.random.choice(['Kidney', 'Liver'], num_samples)
+    num_samples = 300
+    mutations = np.random.choice([
+        'PKD1', 'PKD2', 'PKHD1',           # Kidney
+        'ATP7B', 'FAH', 'TTR',             # Liver
+        'MYBPC3', 'TNNT2', 'MYH7',         # Heart
+        'CFTR', 'AATD',                    # Lung
+        'HTT', 'MECP2', 'SCN1A',           # Brain
+        'RPE65', 'RPGR',                   # Eye
+        'INS', 'PDX1'                      # Pancreas
+    ], num_samples)
+
+    organs_map = {
+        'PKD1': 'Kidney', 'PKD2': 'Kidney', 'PKHD1': 'Kidney',
+        'ATP7B': 'Liver', 'FAH': 'Liver', 'TTR': 'Liver',
+        'MYBPC3': 'Heart', 'TNNT2': 'Heart', 'MYH7': 'Heart',
+        'CFTR': 'Lung', 'AATD': 'Lung',
+        'HTT': 'Brain', 'MECP2': 'Brain', 'SCN1A': 'Brain',
+        'RPE65': 'Eye', 'RPGR': 'Eye',
+        'INS': 'Pancreas', 'PDX1': 'Pancreas'
+    }
+    organs = [organs_map[m] for m in mutations]
     methods = np.random.choice(['LNP', 'Electroporation'], num_samples)
 
     efficiency = np.where(methods == 'LNP',
