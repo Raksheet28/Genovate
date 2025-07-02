@@ -10,28 +10,6 @@ from genovate_backend import load_data, train_model, predict_method, find_pam_si
 data = load_data()
 model, le_mut, le_org, le_method = train_model(data)
 
-# Disease summaries (30-word summaries for each mutation)
-disease_summaries = {
-    "PKD1": "PKD1 mutations cause ADPKD, characterized by progressive kidney cyst formation, hypertension, and renal failure. CRISPR holds promise to disrupt cyst pathways and prevent kidney enlargement.",
-    "PKD2": "PKD2 causes a milder form of ADPKD with later-onset symptoms. It encodes a calcium channel; gene therapy may restore signaling and delay kidney cyst development.",
-    "PKHD1": "PKHD1 mutations lead to ARPKD, affecting infants and children. It causes enlarged kidneys and liver fibrosis. Editing this gene can improve pediatric outcomes significantly.",
-    "ATP7B": "ATP7B mutations cause Wilson’s Disease, a disorder of copper metabolism resulting in liver damage. CRISPR therapy may enable correction to restore copper transport.",
-    "FAH": "FAH mutations result in Tyrosinemia Type I, causing liver failure in infants. Gene editing can restore normal enzyme production and prevent toxic metabolite accumulation.",
-    "TTR": "TTR mutations lead to hereditary amyloidosis, with abnormal protein deposits in organs. CRISPR therapies aim to reduce TTR protein production to manage symptoms.",
-    "MYBPC3": "Mutations in MYBPC3 cause hypertrophic cardiomyopathy, leading to thickened heart walls. CRISPR can potentially correct gene defects to prevent cardiac arrest.",
-    "TNNT2": "TNNT2 mutations affect cardiac troponin, disrupting muscle contraction and causing dilated cardiomyopathy. Precision gene editing may help restore normal heart function.",
-    "MYH7": "MYH7 gene defects lead to cardiomyopathies with risk of sudden death. Targeted therapies may normalize muscle function and reduce disease severity.",
-    "CFTR": "CFTR gene mutations cause Cystic Fibrosis, leading to thick mucus in lungs and pancreas. Gene editing targets correction of defective chloride transport pathways.",
-    "AATD": "AATD arises from mutations in SERPINA1, affecting lung and liver function. CRISPR strategies aim to restore alpha-1 antitrypsin production and protect tissues.",
-    "HTT": "HTT gene mutations cause Huntington’s disease, leading to neurodegeneration. Editing the expanded CAG repeat may delay or prevent disease progression.",
-    "MECP2": "MECP2 mutations result in Rett Syndrome, affecting brain development. Gene therapy aims to restore proper gene regulation in neurons.",
-    "SCN1A": "SCN1A mutations lead to Dravet Syndrome, a severe epilepsy disorder. Targeted editing could normalize sodium channel function in neurons.",
-    "RPE65": "RPE65 defects cause childhood blindness via retinal dystrophy. CRISPR-based gene replacement has shown success in restoring partial vision.",
-    "RPGR": "RPGR mutations result in X-linked retinitis pigmentosa, causing gradual vision loss. Correcting the mutation could delay photoreceptor degeneration.",
-    "INS": "INS gene mutations can lead to neonatal diabetes. Gene editing aims to restore insulin production and regulate blood glucose.",
-    "PDX1": "PDX1 mutations disrupt pancreatic development and insulin regulation. CRISPR therapy holds promise to reprogram beta cell function."
-}
-
 # Streamlit app setup
 st.set_page_config(page_title="Genovate: CRISPR Delivery Predictor", layout="centered")
 st.title(" Genovate: CRISPR/Cas9 Delivery Simulation")
@@ -53,12 +31,6 @@ organ_gene_map = {
 }
 organ = st.selectbox("Select Target Organ:", list(organ_gene_map.keys()))
 mutation = st.selectbox("Select Gene Mutation:", organ_gene_map[organ])
-
-# Show disease summary
-if mutation in disease_summaries:
-    st.markdown("### 🧾 Disease Summary")
-    st.info(disease_summaries[mutation])
-
 therapy_type = st.radio("Therapy Type:", ["Ex vivo", "In vivo"])
 
 st.subheader("Clinical Parameters")
@@ -67,12 +39,40 @@ off = st.slider("Estimated Off-target Risk (%)", 0, 20, 9) / 100.0
 viability = st.slider("Cell Viability Post-Delivery (%)", 50, 100, 90) / 100.0
 cost = st.select_slider("Cost & Scalability (1=Low Cost, 5=High Cost)", options=[1, 2, 3, 4, 5], value=3)
 
+# Gene visualization
+st.subheader("🧬 Gene Visualization")
+gene_images = {
+    "PKD1": "images/pkd1.png",
+    "PKD2": "images/pkd2.png",
+    "PKHD1": "images/pkhd1.png",
+    "ATP7B": "images/atp7b.png",
+    "FAH": "images/fah.png",
+    "TTR": "images/ttr.png",
+    "MYBPC3": "images/mybpc3.png",
+    "TNNT2": "images/tnnt2.png",
+    "MYH7": "images/myh7.png",
+    "CFTR": "images/cftr.png",
+    "AATD": "images/aatd.png",
+    "HTT": "images/htt.png",
+    "MECP2": "images/mecp2.png",
+    "SCN1A": "images/scn1a.png",
+    "RPE65": "images/rpe65.png",
+    "RPGR": "images/rpgr.png",
+    "INS": "images/ins.png",
+    "PDX1": "images/pdx1.png"
+}
+
+if mutation in gene_images:
+    st.image(gene_images[mutation], caption=f"Gene schematic for {mutation} – This image illustrates the approximate location of mutation hotspots within the {mutation} gene.", use_column_width=True)
+else:
+    st.info("No schematic available for this mutation yet.")
+
 if st.button("🔍 Predict Best Delivery Method"):
     recommendation = predict_method(model, le_mut, le_org, le_method, mutation, organ, eff, off, viability, cost)
     st.success(f" Recommended Delivery Method: **{recommendation}**")
 
     # Radar chart for comparison
-    st.subheader(" Comparison Radar Chart")
+    st.subheader("📊 Comparison Radar Chart")
 
     categories = ['Efficiency', 'Off-Target Risk', 'Viability']
     N = len(categories)
