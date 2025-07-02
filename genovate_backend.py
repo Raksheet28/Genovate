@@ -9,16 +9,22 @@ from sklearn.preprocessing import LabelEncoder
 # Load or simulate data (replace with real data or CSV if needed)
 def load_data():
     np.random.seed(42)
-    num_samples = 200
-    mutations = np.random.choice(
-        ['PKD1', 'PKD2', 'PKHD1', 'ATP7B', 'FAH', 'TTR', 'MYBPC3', 'TNNT2', 'MYH7',
-         'CFTR', 'AATD', 'HTT', 'MECP2', 'SCN1A', 'RPE65', 'RPGR', 'INS', 'PDX1'],
-        num_samples
-    )
-    organs = np.random.choice(
-        ['Kidney', 'Liver', 'Heart', 'Lung', 'Brain', 'Eye', 'Pancreas'],
-        num_samples
-    )
+    num_samples = 300
+    mutations = np.random.choice([
+        'PKD1', 'PKD2', 'PKHD1', 'ATP7B', 'FAH', 'TTR', 'MYBPC3', 'TNNT2', 'MYH7',
+        'CFTR', 'AATD', 'HTT', 'MECP2', 'SCN1A', 'RPE65', 'RPGR', 'INS', 'PDX1'
+    ], num_samples)
+
+    organs = []
+    for m in mutations:
+        if m in ['PKD1', 'PKD2', 'PKHD1']: organs.append('Kidney')
+        elif m in ['ATP7B', 'FAH', 'TTR']: organs.append('Liver')
+        elif m in ['MYBPC3', 'TNNT2', 'MYH7']: organs.append('Heart')
+        elif m in ['CFTR', 'AATD']: organs.append('Lung')
+        elif m in ['HTT', 'MECP2', 'SCN1A']: organs.append('Brain')
+        elif m in ['RPE65', 'RPGR']: organs.append('Eye')
+        elif m in ['INS', 'PDX1']: organs.append('Pancreas')
+
     methods = np.random.choice(['LNP', 'Electroporation'], num_samples)
 
     efficiency = np.where(methods == 'LNP',
@@ -76,7 +82,7 @@ def predict_method(model, le_mut, le_org, le_method, mutation, organ, eff, off, 
     pred = model.predict(features)[0]
     return le_method.inverse_transform([pred])[0]
 
-# PAM Finder (for integration)
+# PAM Finder
 def find_pam_sites(dna_sequence, pam="NGG"):
     pam_sites = []
     for i in range(len(dna_sequence) - len(pam) + 1):
@@ -86,28 +92,25 @@ def find_pam_sites(dna_sequence, pam="NGG"):
             pam_sites.append((i, window))
     return pam_sites
 
-# Gene mutation summary lookup
+# Mutation summaries
 def get_mutation_summary():
     return {
-        "PKD1": "Causes autosomal dominant polycystic kidney disease, leading to fluid-filled cysts in kidneys and eventual kidney failure.",
-        "PKD2": "Another ADPKD gene, its mutation leads to less severe cyst formation and kidney dysfunction compared to PKD1.",
-        "PKHD1": "Responsible for autosomal recessive PKD, mostly affecting infants and children with liver and kidney issues.",
-        "ATP7B": "Mutations lead to Wilson’s Disease, a rare disorder causing copper buildup in liver, brain, and other organs.",
-        "FAH": "Causes Tyrosinemia Type I, a disorder impairing the breakdown of the amino acid tyrosine, primarily affecting the liver.",
-        "TTR": "Mutations result in transthyretin amyloidosis, affecting the nerves and heart via protein misfolding and accumulation.",
-        "MYBPC3": "Linked to hypertrophic cardiomyopathy, causing thickened heart muscle and potential cardiac arrest.",
-        "TNNT2": "Encodes cardiac troponin T, and its mutation leads to inherited cardiomyopathy and sudden cardiac death.",
-        "MYH7": "Mutated in hypertrophic and dilated cardiomyopathy, affecting cardiac muscle contraction.",
-        "CFTR": "Defective gene in cystic fibrosis, causes thick mucus buildup in lungs and other organs.",
-        "AATD": "Alpha-1 antitrypsin deficiency leads to lung disease and liver dysfunction.",
-        "HTT": "Responsible for Huntington’s disease, a neurodegenerative disorder with motor, cognitive, and psychiatric symptoms.",
-        "MECP2": "Mutations lead to Rett Syndrome, a neurological disorder in girls affecting movement and communication.",
-        "SCN1A": "Linked to Dravet Syndrome, a severe epilepsy beginning in infancy.",
-        "RPE65": "Gene therapy target for inherited retinal dystrophy; essential in retinal visual cycle.",
-        "RPGR": "X-linked retinitis pigmentosa gene; mutation causes progressive vision loss.",
-        "INS": "Mutations lead to various forms of monogenic diabetes including neonatal diabetes.",
-        "PDX1": "Essential for pancreatic development; mutation leads to MODY (Maturity Onset Diabetes of the Young)."
+        "PKD1": "Causes autosomal dominant PKD, leading to kidney cysts and organ enlargement.",
+        "PKD2": "Another major gene in ADPKD, typically associated with slower disease progression.",
+        "PKHD1": "Leads to autosomal recessive PKD, primarily affecting children with liver/kidney fibrosis.",
+        "ATP7B": "Associated with Wilson's disease, causing copper accumulation in liver and brain.",
+        "FAH": "Mutated in tyrosinemia type I, affecting liver metabolism and causing failure in infants.",
+        "TTR": "Linked to amyloidosis, where misfolded proteins build up in organs including liver and nerves.",
+        "MYBPC3": "Causes hypertrophic cardiomyopathy, thickening heart muscles and disrupting function.",
+        "TNNT2": "Mutated in dilated cardiomyopathy, weakening heart muscle and reducing pumping efficiency.",
+        "MYH7": "Causes both dilated and hypertrophic cardiomyopathies with variable severity.",
+        "CFTR": "Defective in cystic fibrosis, leading to thick mucus buildup in lungs and digestive tract.",
+        "AATD": "Causes alpha-1 antitrypsin deficiency, increasing risk of lung and liver disease.",
+        "HTT": "Mutated in Huntington's disease, causing neurodegeneration and motor/cognitive decline.",
+        "MECP2": "Responsible for Rett syndrome, affecting brain development in young girls.",
+        "SCN1A": "Linked to Dravet syndrome, a severe childhood epilepsy disorder.",
+        "RPE65": "Mutations cause Leber congenital amaurosis, a genetic form of blindness.",
+        "RPGR": "X-linked retinitis pigmentosa gene, affecting photoreceptors in the retina.",
+        "INS": "Linked to neonatal diabetes and MODY, causing insulin production issues.",
+        "PDX1": "Important for pancreatic development, mutations cause diabetes and pancreatic agenesis."
     }
-
-# Footer
-# Developed by Raksheet Gummakonda for Genovate
