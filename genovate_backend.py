@@ -6,45 +6,47 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 
-# Load or simulate data (expanded for Genovate)
+# Load or simulate data (replace with real data or CSV if needed)
 def load_data():
     np.random.seed(42)
-    num_samples = 300
+    num_samples = 200
+    mutations = np.random.choice(
+        ['PKD1', 'PKD2', 'PKHD1', 'ATP7B', 'FAH', 'TTR', 'MYBPC3', 'TNNT2', 'MYH7',
+         'CFTR', 'AATD', 'HTT', 'MECP2', 'SCN1A', 'RPE65', 'RPGR', 'INS', 'PDX1'],
+        num_samples
+    )
+    organs = np.random.choice(
+        ['Kidney', 'Liver', 'Heart', 'Lung', 'Brain', 'Eye', 'Pancreas'],
+        num_samples
+    )
+    methods = np.random.choice(['LNP', 'Electroporation'], num_samples)
 
-    organ_gene_map = {
-        "Kidney": ["PKD1", "PKD2", "PKHD1"],
-        "Liver": ["ATP7B", "FAH", "TTR"],
-        "Heart": ["MYBPC3", "TNNT2", "MYH7"],
-        "Lung": ["CFTR", "AATD"],
-        "Brain": ["HTT", "MECP2", "SCN1A"],
-        "Eye": ["RPE65", "RPGR"],
-        "Pancreas": ["INS", "PDX1"]
-    }
+    efficiency = np.where(methods == 'LNP',
+                          np.random.normal(0.72, 0.05, num_samples),
+                          np.random.normal(0.85, 0.04, num_samples))
 
-    delivery_methods = ['LNP', 'Electroporation']
+    off_target = np.where(methods == 'LNP',
+                          np.random.normal(0.07, 0.02, num_samples),
+                          np.random.normal(0.12, 0.03, num_samples))
 
-    all_data = []
+    cell_viability = np.where(methods == 'LNP',
+                              np.random.normal(0.92, 0.03, num_samples),
+                              np.random.normal(0.75, 0.05, num_samples))
 
-    for _ in range(num_samples):
-        organ = np.random.choice(list(organ_gene_map.keys()))
-        mutation = np.random.choice(organ_gene_map[organ])
-        method = np.random.choice(delivery_methods)
+    cost = np.where(methods == 'LNP',
+                    np.random.randint(1, 3, num_samples),
+                    np.random.randint(3, 5, num_samples))
 
-        if method == 'LNP':
-            efficiency = np.clip(np.random.normal(0.72, 0.05), 0, 1)
-            off_target = np.clip(np.random.normal(0.07, 0.02), 0, 1)
-            viability = np.clip(np.random.normal(0.92, 0.03), 0, 1)
-            cost = np.random.randint(1, 3)
-        else:
-            efficiency = np.clip(np.random.normal(0.85, 0.04), 0, 1)
-            off_target = np.clip(np.random.normal(0.12, 0.03), 0, 1)
-            viability = np.clip(np.random.normal(0.75, 0.05), 0, 1)
-            cost = np.random.randint(3, 5)
-
-        all_data.append([mutation, organ, method, efficiency, off_target, viability, cost])
-
-    df = pd.DataFrame(all_data, columns=["Mutation", "TargetOrgan", "DeliveryMethod", "Efficiency", "OffTargetRisk", "CellViability", "Cost"])
-    return df
+    data = pd.DataFrame({
+        "Mutation": mutations,
+        "TargetOrgan": organs,
+        "DeliveryMethod": methods,
+        "Efficiency": np.clip(efficiency, 0, 1),
+        "OffTargetRisk": np.clip(off_target, 0, 1),
+        "CellViability": np.clip(cell_viability, 0, 1),
+        "Cost": cost
+    })
+    return data
 
 # Prepare and train model
 def train_model(data):
@@ -83,6 +85,29 @@ def find_pam_sites(dna_sequence, pam="NGG"):
         if match:
             pam_sites.append((i, window))
     return pam_sites
+
+# Gene mutation summary lookup
+def get_mutation_summary():
+    return {
+        "PKD1": "Causes autosomal dominant polycystic kidney disease, leading to fluid-filled cysts in kidneys and eventual kidney failure.",
+        "PKD2": "Another ADPKD gene, its mutation leads to less severe cyst formation and kidney dysfunction compared to PKD1.",
+        "PKHD1": "Responsible for autosomal recessive PKD, mostly affecting infants and children with liver and kidney issues.",
+        "ATP7B": "Mutations lead to Wilson’s Disease, a rare disorder causing copper buildup in liver, brain, and other organs.",
+        "FAH": "Causes Tyrosinemia Type I, a disorder impairing the breakdown of the amino acid tyrosine, primarily affecting the liver.",
+        "TTR": "Mutations result in transthyretin amyloidosis, affecting the nerves and heart via protein misfolding and accumulation.",
+        "MYBPC3": "Linked to hypertrophic cardiomyopathy, causing thickened heart muscle and potential cardiac arrest.",
+        "TNNT2": "Encodes cardiac troponin T, and its mutation leads to inherited cardiomyopathy and sudden cardiac death.",
+        "MYH7": "Mutated in hypertrophic and dilated cardiomyopathy, affecting cardiac muscle contraction.",
+        "CFTR": "Defective gene in cystic fibrosis, causes thick mucus buildup in lungs and other organs.",
+        "AATD": "Alpha-1 antitrypsin deficiency leads to lung disease and liver dysfunction.",
+        "HTT": "Responsible for Huntington’s disease, a neurodegenerative disorder with motor, cognitive, and psychiatric symptoms.",
+        "MECP2": "Mutations lead to Rett Syndrome, a neurological disorder in girls affecting movement and communication.",
+        "SCN1A": "Linked to Dravet Syndrome, a severe epilepsy beginning in infancy.",
+        "RPE65": "Gene therapy target for inherited retinal dystrophy; essential in retinal visual cycle.",
+        "RPGR": "X-linked retinitis pigmentosa gene; mutation causes progressive vision loss.",
+        "INS": "Mutations lead to various forms of monogenic diabetes including neonatal diabetes.",
+        "PDX1": "Essential for pancreatic development; mutation leads to MODY (Maturity Onset Diabetes of the Young)."
+    }
 
 # Footer
 # Developed by Raksheet Gummakonda for Genovate
