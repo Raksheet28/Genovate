@@ -2,29 +2,23 @@
 
 import numpy as np
 import pandas as pd
+import os
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 
-# Load or simulate data (replace with real data or CSV if needed)
+# Load or simulate data
 def load_data():
     np.random.seed(42)
     num_samples = 300
     mutations = np.random.choice([
-        'PKD1', 'PKD2', 'PKHD1', 'ATP7B', 'FAH', 'TTR', 'MYBPC3', 'TNNT2', 'MYH7',
-        'CFTR', 'AATD', 'HTT', 'MECP2', 'SCN1A', 'RPE65', 'RPGR', 'INS', 'PDX1'
+        'PKD1', 'PKD2', 'PKHD1', 'ATP7B', 'FAH', 'TTR',
+        'MYBPC3', 'TNNT2', 'MYH7', 'CFTR', 'AATD',
+        'HTT', 'MECP2', 'SCN1A', 'RPE65', 'RPGR', 'INS', 'PDX1'
     ], num_samples)
-
-    organs = []
-    for m in mutations:
-        if m in ['PKD1', 'PKD2', 'PKHD1']: organs.append('Kidney')
-        elif m in ['ATP7B', 'FAH', 'TTR']: organs.append('Liver')
-        elif m in ['MYBPC3', 'TNNT2', 'MYH7']: organs.append('Heart')
-        elif m in ['CFTR', 'AATD']: organs.append('Lung')
-        elif m in ['HTT', 'MECP2', 'SCN1A']: organs.append('Brain')
-        elif m in ['RPE65', 'RPGR']: organs.append('Eye')
-        elif m in ['INS', 'PDX1']: organs.append('Pancreas')
-
+    organs = np.random.choice([
+        'Kidney', 'Liver', 'Heart', 'Lung', 'Brain', 'Eye', 'Pancreas'
+    ], num_samples)
     methods = np.random.choice(['LNP', 'Electroporation'], num_samples)
 
     efficiency = np.where(methods == 'LNP',
@@ -92,25 +86,31 @@ def find_pam_sites(dna_sequence, pam="NGG"):
             pam_sites.append((i, window))
     return pam_sites
 
-# Mutation summaries
-def get_mutation_summary():
-    return {
-        "PKD1": "Causes autosomal dominant PKD, leading to kidney cysts and organ enlargement.",
-        "PKD2": "Another major gene in ADPKD, typically associated with slower disease progression.",
-        "PKHD1": "Leads to autosomal recessive PKD, primarily affecting children with liver/kidney fibrosis.",
-        "ATP7B": "Associated with Wilson's disease, causing copper accumulation in liver and brain.",
-        "FAH": "Mutated in tyrosinemia type I, affecting liver metabolism and causing failure in infants.",
-        "TTR": "Linked to amyloidosis, where misfolded proteins build up in organs including liver and nerves.",
-        "MYBPC3": "Causes hypertrophic cardiomyopathy, thickening heart muscles and disrupting function.",
-        "TNNT2": "Mutated in dilated cardiomyopathy, weakening heart muscle and reducing pumping efficiency.",
-        "MYH7": "Causes both dilated and hypertrophic cardiomyopathies with variable severity.",
-        "CFTR": "Defective in cystic fibrosis, leading to thick mucus buildup in lungs and digestive tract.",
-        "AATD": "Causes alpha-1 antitrypsin deficiency, increasing risk of lung and liver disease.",
-        "HTT": "Mutated in Huntington's disease, causing neurodegeneration and motor/cognitive decline.",
-        "MECP2": "Responsible for Rett syndrome, affecting brain development in young girls.",
-        "SCN1A": "Linked to Dravet syndrome, a severe childhood epilepsy disorder.",
-        "RPE65": "Mutations cause Leber congenital amaurosis, a genetic form of blindness.",
-        "RPGR": "X-linked retinitis pigmentosa gene, affecting photoreceptors in the retina.",
-        "INS": "Linked to neonatal diabetes and MODY, causing insulin production issues.",
-        "PDX1": "Important for pancreatic development, mutations cause diabetes and pancreatic agenesis."
-    }
+# Gene Image Path
+def get_gene_image_path(mutation):
+    return f"gene_images/{mutation}.png"
+
+# Mutation Summary
+mutation_summaries = {
+    "PKD1": "Causes ADPKD; leads to kidney cyst formation & enlargement.",
+    "PKD2": "Associated with ADPKD; disrupts calcium signaling in kidney cells.",
+    "PKHD1": "Causes ARPKD; leads to cystic dilation in collecting ducts.",
+    "ATP7B": "Leads to Wilson disease; copper accumulates in tissues.",
+    "FAH": "Causes tyrosinemia type I; disrupts tyrosine breakdown.",
+    "TTR": "Linked to familial amyloidosis; affects heart & nerves.",
+    "MYBPC3": "Causes hypertrophic cardiomyopathy; affects cardiac contractility.",
+    "TNNT2": "Linked to dilated cardiomyopathy; alters cardiac muscle function.",
+    "MYH7": "Causes various cardiomyopathies; affects sarcomere function.",
+    "CFTR": "Mutations lead to cystic fibrosis; causes thick mucus buildup.",
+    "AATD": "Alpha-1 antitrypsin deficiency; damages lungs & liver.",
+    "HTT": "Expanded repeats cause Huntington’s disease; neurodegenerative symptoms.",
+    "MECP2": "Mutations cause Rett syndrome; affects brain development in girls.",
+    "SCN1A": "Linked to Dravet syndrome; alters sodium channel function.",
+    "RPE65": "Linked to Leber’s congenital amaurosis; causes vision loss.",
+    "RPGR": "Mutations cause X-linked retinitis pigmentosa; progressive vision loss.",
+    "INS": "Linked to neonatal diabetes & MODY; impairs insulin production.",
+    "PDX1": "Essential for pancreas development; mutations cause diabetes."
+}
+
+def get_mutation_summary(mutation):
+    return mutation_summaries.get(mutation, "No summary available for this gene mutation.")
