@@ -4,7 +4,8 @@ import streamlit as st
 import matplotlib.pyplot as plt
 import numpy as np
 from math import pi
-from genovate_backend import load_data, train_model, predict_method, find_pam_sites
+import os
+from genovate_backend import load_data, train_model, predict_method, find_pam_sites, get_mutation_summary, get_gene_image_path
 
 # Load and train model
 data = load_data()
@@ -12,7 +13,7 @@ model, le_mut, le_org, le_method = train_model(data)
 
 # Streamlit app setup
 st.set_page_config(page_title="Genovate: CRISPR Delivery Predictor", layout="centered")
-st.title(" Genovate: CRISPR/Cas9 Delivery Simulation")
+st.title("🧬 Genovate: CRISPR/Cas9 Delivery Simulation")
 st.markdown("""
 Welcome to **Genovate**, a predictive simulation tool to identify the optimal CRISPR delivery method 
 for treating gene mutations like **PKD1**, **PKD2**, and **PKHD1**.
@@ -33,43 +34,29 @@ organ = st.selectbox("Select Target Organ:", list(organ_gene_map.keys()))
 mutation = st.selectbox("Select Gene Mutation:", organ_gene_map[organ])
 therapy_type = st.radio("Therapy Type:", ["Ex vivo", "In vivo"])
 
-st.subheader("Clinical Parameters")
+# Display mutation summary and image
+st.header("🧬 Mutation Details")
+col1, col2 = st.columns([2, 3])
+with col1:
+    summary = get_mutation_summary(mutation)
+    st.markdown(f"**Mutation Summary:**\n\n{summary}")
+with col2:
+    img_path = get_gene_image_path(mutation)
+    if os.path.exists(img_path):
+        st.image(img_path, caption=f"📍 Gene schematic for {mutation} — domains and mutation hotspots.", use_column_width=True)
+        st.caption("ℹ️ This diagram shows functional domains and known mutation sites for the selected gene.")
+    else:
+        st.warning("No image available for this mutation.")
+
+st.header("📋 Clinical Parameters")
 eff = st.slider("Estimated Editing Efficiency (%)", 60, 100, 75) / 100.0
 off = st.slider("Estimated Off-target Risk (%)", 0, 20, 9) / 100.0
 viability = st.slider("Cell Viability Post-Delivery (%)", 50, 100, 90) / 100.0
 cost = st.select_slider("Cost & Scalability (1=Low Cost, 5=High Cost)", options=[1, 2, 3, 4, 5], value=3)
 
-# Gene visualization
-st.subheader("🧬 Gene Visualization")
-gene_images = {
-    "PKD1": "images/pkd1.png",
-    "PKD2": "images/pkd2.png",
-    "PKHD1": "images/pkhd1.png",
-    "ATP7B": "images/atp7b.png",
-    "FAH": "images/fah.png",
-    "TTR": "images/ttr.png",
-    "MYBPC3": "images/mybpc3.png",
-    "TNNT2": "images/tnnt2.png",
-    "MYH7": "images/myh7.png",
-    "CFTR": "images/cftr.png",
-    "AATD": "images/aatd.png",
-    "HTT": "images/htt.png",
-    "MECP2": "images/mecp2.png",
-    "SCN1A": "images/scn1a.png",
-    "RPE65": "images/rpe65.png",
-    "RPGR": "images/rpgr.png",
-    "INS": "images/ins.png",
-    "PDX1": "images/pdx1.png"
-}
-
-if mutation in gene_images:
-    st.image(gene_images[mutation], caption=f"Gene schematic for {mutation} – This image illustrates the approximate location of mutation hotspots within the {mutation} gene.", use_column_width=True)
-else:
-    st.info("No schematic available for this mutation yet.")
-
 if st.button("🔍 Predict Best Delivery Method"):
     recommendation = predict_method(model, le_mut, le_org, le_method, mutation, organ, eff, off, viability, cost)
-    st.success(f" Recommended Delivery Method: **{recommendation}**")
+    st.success(f"🚀 Recommended Delivery Method: **{recommendation}**")
 
     # Radar chart for comparison
     st.subheader("📊 Comparison Radar Chart")
@@ -109,7 +96,7 @@ if st.button("🔍 Predict Best Delivery Method"):
     st.pyplot(fig)
 
 # PAM Finder
-st.header(" Optional: Find PAM Sequences in Your DNA")
+st.header("🧬 Optional: Find PAM Sequences in Your DNA")
 dna_input = st.text_area("Enter a DNA sequence (use only A, T, G, C):", "AGGTCGTTACCGGTAGCGGTACCGTAGGGTAGGCTAGGGTACCGGTAG")
 if st.button("🔎 Find PAM Sites"):
     pam_sites = find_pam_sites(dna_input.upper())
