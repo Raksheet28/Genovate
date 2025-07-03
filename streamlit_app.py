@@ -43,7 +43,7 @@ with col1:
 with col2:
     img_path = get_gene_image_path(mutation)
     if os.path.exists(img_path):
-        st.image(img_path, caption=f"📍 Gene schematic for {mutation} — domains and mutation hotspots.", use_column_width=True)
+        st.image(image_path, caption=f"Gene schematic for {mutation} – Mutation hotspots highlighted.", use_container_width=True)
         st.caption("ℹ️ This diagram shows functional domains and known mutation sites for the selected gene.")
     else:
         st.warning("No image available for this mutation.")
