@@ -1,13 +1,13 @@
 import numpy as np
 import pandas as pd
+import os
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
-import os
 from fpdf import FPDF
-from PIL import Image
+import matplotlib.pyplot as plt
 
-# Load or simulate training data
+# 1. Simulate training data
 def load_data():
     np.random.seed(42)
     num_samples = 200
@@ -19,15 +19,12 @@ def load_data():
     efficiency = np.where(methods == 'LNP',
                           np.random.normal(0.72, 0.05, num_samples),
                           np.random.normal(0.85, 0.04, num_samples))
-
     off_target = np.where(methods == 'LNP',
                           np.random.normal(0.07, 0.02, num_samples),
                           np.random.normal(0.12, 0.03, num_samples))
-
     cell_viability = np.where(methods == 'LNP',
                               np.random.normal(0.92, 0.03, num_samples),
                               np.random.normal(0.75, 0.05, num_samples))
-
     cost = np.where(methods == 'LNP',
                     np.random.randint(1, 3, num_samples),
                     np.random.randint(3, 5, num_samples))
@@ -43,7 +40,7 @@ def load_data():
     })
     return data
 
-# Train classifier
+# 2. Train model
 def train_model(data):
     le_mut = LabelEncoder()
     le_org = LabelEncoder()
@@ -57,13 +54,12 @@ def train_model(data):
     y = data['Method_enc']
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
     model = RandomForestClassifier(n_estimators=100, random_state=42)
     model.fit(X_train, y_train)
 
     return model, le_mut, le_org, le_method
 
-# Predict delivery method
+# 3. Predict method
 def predict_method(model, le_mut, le_org, le_method, mutation, organ, eff, off, viability, cost):
     features = np.array([[le_mut.transform([mutation])[0],
                           le_org.transform([organ])[0],
@@ -71,17 +67,39 @@ def predict_method(model, le_mut, le_org, le_method, mutation, organ, eff, off, 
     pred = model.predict(features)[0]
     return le_method.inverse_transform([pred])[0]
 
-# Confidence score (probability of predicted class)
+# 4. Confidence score
 def predict_confidence(model, le_mut, le_org, le_method, mutation, organ, eff, off, viability, cost, predicted_method):
     features = np.array([[le_mut.transform([mutation])[0],
                           le_org.transform([organ])[0],
                           eff, off, viability, cost]])
     proba = model.predict_proba(features)[0]
     method_index = le_method.transform([predicted_method])[0]
-    confidence_score = proba[method_index] * 100  # Convert to percentage
+    confidence_score = proba[method_index] * 100
     return confidence_score
 
-# PAM finder
+# 5. Generate PDF summary report
+def generate_pdf_report(inputs, mutation_summary, radar_path, output_path):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+
+    pdf.cell(0, 10, "Genovate: CRISPR Delivery Prediction Summary", ln=True, align="C")
+    pdf.ln(10)
+
+    pdf.set_font("Arial", size=11)
+    for key, value in inputs.items():
+        pdf.cell(0, 10, f"{key}: {value}", ln=True)
+    
+    pdf.ln(5)
+    pdf.multi_cell(0, 10, f"Mutation Summary: {mutation_summary}")
+
+    pdf.ln(10)
+    if os.path.exists(radar_path):
+        pdf.image(radar_path, x=30, w=150)
+
+    pdf.output(output_path)
+
+# 6. PAM site finder
 def find_pam_sites(dna_sequence, pam="NGG"):
     pam_sites = []
     for i in range(len(dna_sequence) - len(pam) + 1):
@@ -91,7 +109,7 @@ def find_pam_sites(dna_sequence, pam="NGG"):
             pam_sites.append((i, window))
     return pam_sites
 
-# Gene summaries
+# 7. Gene mutation summaries
 mutation_summaries = {
     "PKD1": "PKD1 mutations lead to polycystic kidney disease, disrupting cell polarity and tubule formation through polycystin-1 dysfunction.",
     "PKD2": "PKD2 mutations affect polycystin-2, impairing calcium signaling and leading to progressive kidney cyst formation.",
@@ -119,33 +137,20 @@ def get_mutation_summary(mutation):
 def get_gene_image_path(mutation):
     return os.path.join("gene_images", f"{mutation}.png")
 
-# Generate PDF Report
-def generate_pdf_report(inputs, method, confidence, summary, radar_path):
-    pdf = FPDF()
-    pdf.add_page()
-
-    pdf.set_font("Arial", 'B', 16)
-    pdf.cell(200, 10, "Genovate: CRISPR Delivery Summary", ln=True, align='C')
-    pdf.ln(10)
-
-    pdf.set_font("Arial", '', 12)
-    for key, value in inputs.items():
-        pdf.cell(200, 8, f"{key}: {value}", ln=True)
-
-    pdf.ln(5)
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(200, 8, f"Recommended Method: {method}", ln=True)
-    pdf.cell(200, 8, f"Confidence Score: {confidence:.2f}%", ln=True)
-
-    pdf.ln(5)
-    pdf.set_font("Arial", 'I', 11)
-    pdf.multi_cell(0, 7, f"Mutation Summary:\n{summary}")
-
-    # Add radar chart image
-    if radar_path and os.path.exists(radar_path):
-        pdf.ln(5)
-        pdf.image(radar_path, x=30, w=150)
-
-    output_path = "Genovate_Report.pdf"
-    pdf.output(output_path)
-    return output_path
+# 8. Learning mode content
+learning_mode = {
+    "CRISPR Basics": """
+CRISPR is a gene-editing tool derived from bacterial defense mechanisms. It uses an RNA guide and Cas9 enzyme to cut DNA at specific sites, allowing for editing of genetic material.
+""",
+    "Electroporation": """
+Electroporation involves applying electric fields to open pores in cell membranes, allowing CRISPR components (like Cas9 + guide RNA) to enter cells. It's commonly used for ex vivo editing.
+""",
+    "Lipid Nanoparticles (LNPs)": """
+LNPs are tiny fat-based particles that encapsulate CRISPR components and deliver them into cells, especially useful for in vivo treatments via bloodstream injection.
+""",
+    "External Resources": {
+        "CRISPR Tutorial by Broad Institute": "https://www.broadinstitute.org/what-broad/areas-focus/project-spotlight/crispr",
+        "Nature CRISPR Guide": "https://www.nature.com/subjects/crispr-cas9",
+        "MIT’s CRISPR Explainer": "https://biology.mit.edu/understanding-crispr/"
+    }
+}
