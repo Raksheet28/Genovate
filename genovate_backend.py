@@ -1,5 +1,3 @@
-# genovate_backend.py
-
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
@@ -70,6 +68,17 @@ def predict_method(model, le_mut, le_org, le_method, mutation, organ, eff, off, 
                           eff, off, viability, cost]])
     pred = model.predict(features)[0]
     return le_method.inverse_transform([pred])[0]
+
+# Predict best delivery method with confidence score
+def predict_method_with_confidence(model, le_mut, le_org, le_method, mutation, organ, eff, off, viability, cost):
+    features = np.array([[le_mut.transform([mutation])[0],
+                          le_org.transform([organ])[0],
+                          eff, off, viability, cost]])
+    pred_proba = model.predict_proba(features)[0]
+    pred_index = np.argmax(pred_proba)
+    pred_method = le_method.inverse_transform([pred_index])[0]
+    confidence = pred_proba[pred_index]
+    return pred_method, confidence
 
 # Simple PAM site finder
 def find_pam_sites(dna_sequence, pam="NGG"):
