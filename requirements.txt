@@ -1,4 +1,7 @@
 streamlit
+matplotlib
+numpy
 pandas
 scikit-learn
-matplotlib
+fpdf
+Pillow
