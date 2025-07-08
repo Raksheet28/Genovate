@@ -9,6 +9,7 @@ from genovate_backend import (
     load_data,
     train_model,
     predict_method,
+    predict_confidence,
     find_pam_sites,
     get_gene_image_path,
     get_mutation_summary
@@ -67,7 +68,12 @@ with col2:
 # Prediction
 if st.button("🔍 Predict Best Delivery Method"):
     recommendation = predict_method(model, le_mut, le_org, le_method, mutation, organ, eff, off, viability, cost)
+    confidence = predict_confidence(model, le_mut, le_org, le_method, mutation, organ, eff, off, viability, cost, recommendation)
+
     st.success(f"🚀 Recommended Delivery Method: **{recommendation}**")
+    st.metric("Model Confidence", f"{confidence:.1f}%")
+
+    st.progress(confidence / 100.0)
 
     # Radar Chart Comparison
     st.subheader("📊 Comparison Radar Chart")
