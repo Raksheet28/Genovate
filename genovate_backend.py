@@ -61,7 +61,7 @@ def train_model(data):
 
     return model, le_mut, le_org, le_method
 
-# Predict best delivery method
+# Predict delivery method
 def predict_method(model, le_mut, le_org, le_method, mutation, organ, eff, off, viability, cost):
     features = np.array([[le_mut.transform([mutation])[0],
                           le_org.transform([organ])[0],
@@ -69,18 +69,17 @@ def predict_method(model, le_mut, le_org, le_method, mutation, organ, eff, off, 
     pred = model.predict(features)[0]
     return le_method.inverse_transform([pred])[0]
 
-# Predict best delivery method with confidence score
-def predict_method_with_confidence(model, le_mut, le_org, le_method, mutation, organ, eff, off, viability, cost):
+# Confidence score (probability of predicted class)
+def predict_confidence(model, le_mut, le_org, le_method, mutation, organ, eff, off, viability, cost, predicted_method):
     features = np.array([[le_mut.transform([mutation])[0],
                           le_org.transform([organ])[0],
                           eff, off, viability, cost]])
-    pred_proba = model.predict_proba(features)[0]
-    pred_index = np.argmax(pred_proba)
-    pred_method = le_method.inverse_transform([pred_index])[0]
-    confidence = pred_proba[pred_index]
-    return pred_method, confidence
+    proba = model.predict_proba(features)[0]
+    method_index = le_method.transform([predicted_method])[0]
+    confidence_score = proba[method_index] * 100  # Convert to percentage
+    return confidence_score
 
-# Simple PAM site finder
+# PAM finder
 def find_pam_sites(dna_sequence, pam="NGG"):
     pam_sites = []
     for i in range(len(dna_sequence) - len(pam) + 1):
@@ -90,7 +89,7 @@ def find_pam_sites(dna_sequence, pam="NGG"):
             pam_sites.append((i, window))
     return pam_sites
 
-# Mutation summaries (30 words)
+# Gene summaries
 mutation_summaries = {
     "PKD1": "PKD1 mutations lead to polycystic kidney disease, disrupting cell polarity and tubule formation through polycystin-1 dysfunction.",
     "PKD2": "PKD2 mutations affect polycystin-2, impairing calcium signaling and leading to progressive kidney cyst formation.",
@@ -112,10 +111,8 @@ mutation_summaries = {
     "PDX1": "PDX1 mutations impair pancreatic development, leading to diabetes due to beta-cell dysfunction."
 }
 
-# Returns 30-word summary for mutation
 def get_mutation_summary(mutation):
     return mutation_summaries.get(mutation, "No summary available for this mutation.")
 
-# Gene image path (static)
 def get_gene_image_path(mutation):
     return os.path.join("gene_images", f"{mutation}.png")
