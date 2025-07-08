@@ -4,6 +4,8 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 import os
+from fpdf import FPDF
+from PIL import Image
 
 # Load or simulate training data
 def load_data():
@@ -116,3 +118,34 @@ def get_mutation_summary(mutation):
 
 def get_gene_image_path(mutation):
     return os.path.join("gene_images", f"{mutation}.png")
+
+# Generate PDF Report
+def generate_pdf_report(inputs, method, confidence, summary, radar_path):
+    pdf = FPDF()
+    pdf.add_page()
+
+    pdf.set_font("Arial", 'B', 16)
+    pdf.cell(200, 10, "Genovate: CRISPR Delivery Summary", ln=True, align='C')
+    pdf.ln(10)
+
+    pdf.set_font("Arial", '', 12)
+    for key, value in inputs.items():
+        pdf.cell(200, 8, f"{key}: {value}", ln=True)
+
+    pdf.ln(5)
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(200, 8, f"Recommended Method: {method}", ln=True)
+    pdf.cell(200, 8, f"Confidence Score: {confidence:.2f}%", ln=True)
+
+    pdf.ln(5)
+    pdf.set_font("Arial", 'I', 11)
+    pdf.multi_cell(0, 7, f"Mutation Summary:\n{summary}")
+
+    # Add radar chart image
+    if radar_path and os.path.exists(radar_path):
+        pdf.ln(5)
+        pdf.image(radar_path, x=30, w=150)
+
+    output_path = "Genovate_Report.pdf"
+    pdf.output(output_path)
+    return output_path
