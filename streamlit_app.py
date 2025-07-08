@@ -1,5 +1,3 @@
-# streamlit_app.py
-
 import streamlit as st
 import matplotlib.pyplot as plt
 import numpy as np
@@ -12,7 +10,8 @@ from genovate_backend import (
     predict_confidence,
     find_pam_sites,
     get_gene_image_path,
-    get_mutation_summary
+    get_mutation_summary,
+    generate_pdf_report
 )
 
 # Load and train model
@@ -63,19 +62,18 @@ with col1:
 
 with col2:
     st.markdown(f"**🧠 {mutation} Summary:**")
-    st.info(get_mutation_summary(mutation))
+    mutation_summary = get_mutation_summary(mutation)
+    st.info(mutation_summary)
 
-# Prediction
+# Prediction + Radar
 if st.button("🔍 Predict Best Delivery Method"):
     recommendation = predict_method(model, le_mut, le_org, le_method, mutation, organ, eff, off, viability, cost)
     confidence = predict_confidence(model, le_mut, le_org, le_method, mutation, organ, eff, off, viability, cost, recommendation)
 
     st.success(f"🚀 Recommended Delivery Method: **{recommendation}**")
     st.metric("Model Confidence", f"{confidence:.1f}%")
-
     st.progress(confidence / 100.0)
 
-    # Radar Chart Comparison
     st.subheader("📊 Comparison Radar Chart")
     categories = ['Efficiency', 'Off-Target Risk', 'Viability']
     N = len(categories)
@@ -108,7 +106,29 @@ if st.button("🔍 Predict Best Delivery Method"):
 
     ax.set_ylim(0, 1)
     plt.legend(loc='upper right', bbox_to_anchor=(0.1, 0.1))
+
+    radar_path = "radar_chart.png"
+    fig.savefig(radar_path, bbox_inches='tight')
     st.pyplot(fig)
+
+    # PDF Report
+    st.subheader("📄 Downloadable PDF Report")
+    inputs = {
+        "Organ": organ,
+        "Mutation": mutation,
+        "Therapy Type": therapy_type,
+        "Estimated Efficiency": f"{eff * 100:.1f}%",
+        "Off-Target Risk": f"{off * 100:.1f}%",
+        "Cell Viability": f"{viability * 100:.1f}%",
+        "Cost & Scalability": cost
+    }
+
+    pdf_path = generate_pdf_report(inputs, recommendation, confidence, mutation_summary, radar_path)
+    with open(pdf_path, "rb") as f:
+        st.download_button(label="📥 Download PDF Report",
+                           data=f,
+                           file_name="Genovate_Report.pdf",
+                           mime="application/pdf")
 
 # PAM Sequence Finder
 st.header("🧬 Optional: Find PAM Sequences in Your DNA")
