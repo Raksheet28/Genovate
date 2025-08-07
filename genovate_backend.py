@@ -182,37 +182,21 @@ LNPs are tiny fat-based particles that encapsulate CRISPR components and deliver
     }
 }
 
-from Bio.Blast import NCBIWWW, NCBIXML
-
 def detect_gene_from_sequence(sequence):
+    from Bio.Blast import NCBIWWW, NCBIXML
+
     try:
-        # Limit BLAST to Human RefSeq entries only, fetch only 1 top result
-        result_handle = NCBIWWW.qblast(
-            "blastn",
-            "nt",
-            sequence,
-            entrez_query="human[Organism] AND srcdb_refseq[PROP]",
-            hitlist_size=1
-        )
+        result_handle = NCBIWWW.qblast("blastn", "nt", sequence, hitlist_size=5)
         blast_record = NCBIXML.read(result_handle)
 
-        # Check for alignments
-        if not blast_record.alignments:
-            return "❌ No match found"
+        matches = []
+        for alignment in blast_record.alignments[:3]:  # Top 3 matches
+            hit_info = f"{alignment.hit_id} | {alignment.hit_def}"
+            matches.append(hit_info)
 
-        alignment = blast_record.alignments[0]
-        hsp = alignment.hsps[0]
-
-        # Filter by e-value (confidence threshold)
-        if float(hsp.expect) > 1e-5:
-            return "❌ No high-confidence gene match found"
-
-        # Require gene name in title
-        if "gene" not in alignment.title.lower():
-            return "❌ Match found, but gene name not specified"
-
-        # Return cleaned title
-        return f"✅ Match Found:\n\n🔬 {alignment.title}"
-
+        if matches:
+            return matches
+        else:
+            return ["❌ No high-confidence gene match found"]
     except Exception as e:
-        return f"❌ Error: {str(e)}"
+        return [f"❌ Error running BLAST: {str(e)}"]
