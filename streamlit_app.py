@@ -209,6 +209,19 @@ if st.sidebar.checkbox("🧬 Show Genomic Sequence"):
         except Exception as e:
             st.error(f"❌ Error fetching sequence: {e}")
 
+        # Optional: Detect Gene from Input DNA Sequence (Advanced)
+    st.header("🧬 Experimental: Detect Gene from Sequence")
+    detect_sequence = st.text_area("Paste a DNA sequence to auto-detect gene:")
+    
+    if st.button("🧬 Run Gene Detection"):
+        if detect_sequence:
+            with st.spinner("Running BLAST to detect gene..."):
+                gene_info = detect_gene_from_sequence(detect_sequence)
+                st.success("🎯 Match Found:")
+                st.code(gene_info)
+        else:
+            st.warning("Please paste a valid DNA sequence to detect the gene.")
+
     # Footer
     st.markdown("---")
     st.caption("Developed by Raksheet Gummakonda for Genovate")
