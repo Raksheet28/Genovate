@@ -185,19 +185,34 @@ LNPs are tiny fat-based particles that encapsulate CRISPR components and deliver
 from Bio.Blast import NCBIWWW, NCBIXML
 
 def detect_gene_from_sequence(sequence):
-    """
-    Uses BLAST to find the closest matching gene for a given DNA sequence.
-    Returns gene name and organism if available.
-    """
     try:
-        result_handle = NCBIWWW.qblast("blastn", "nt", sequence, hitlist_size=1)
+        # Limit BLAST to Human RefSeq entries only, fetch only 1 top result
+        result_handle = NCBIWWW.qblast(
+            "blastn",
+            "nt",
+            sequence,
+            entrez_query="human[Organism] AND srcdb_refseq[PROP]",
+            hitlist_size=1
+        )
         blast_record = NCBIXML.read(result_handle)
 
-        if blast_record.alignments:
-            title = blast_record.alignments[0].title
-            return title  # Contains gene and organism name
-        else:
-            return "No match found."
+        # Check for alignments
+        if not blast_record.alignments:
+            return "❌ No match found"
+
+        alignment = blast_record.alignments[0]
+        hsp = alignment.hsps[0]
+
+        # Filter by e-value (confidence threshold)
+        if float(hsp.expect) > 1e-5:
+            return "❌ No high-confidence gene match found"
+
+        # Require gene name in title
+        if "gene" not in alignment.title.lower():
+            return "❌ Match found, but gene name not specified"
+
+        # Return cleaned title
+        return f"✅ Match Found:\n\n🔬 {alignment.title}"
 
     except Exception as e:
-        return f"Error during BLAST search: {e}"
+        return f"❌ Error: {str(e)}"
