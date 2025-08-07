@@ -12,7 +12,9 @@ from genovate_backend import (
     get_gene_image_path,
     get_mutation_summary,
     generate_pdf_report,
-    learning_mode
+    learning_mode,
+    fetch_genbank_record,
+    highlight_pam_sites
 )
 
 # Load model
@@ -165,24 +167,23 @@ else:
         else:
             st.warning("❌ No PAM sites (NGG) found in the input.")
 
-    # Optional: Show Genomic Sequence with PAM highlights
+  # Optional: Genomic Viewer with PAM Highlighting
 if st.sidebar.checkbox("🧬 Show Genomic Sequence"):
     st.subheader("Genomic Sequence (First ~200 bases with PAM sites)")
 
-    from genovate_backend import fetch_genbank_record, highlight_pam_sites
+    accession_id = st.text_input("Enter NCBI Accession ID", value="NM_000296.4")
 
-    accession_id = "NM_000296.4"  # Example: PKD1 mRNA
-    try:
-        record = fetch_genbank_record(accession_id)
-        raw_sequence = str(record.seq)[:200]
+    if accession_id:
+        try:
+            record = fetch_genbank_record(accession_id)
+            raw_sequence = str(record.seq)[:200]
+            highlighted = highlight_pam_sites(raw_sequence)
 
-        highlighted = highlight_pam_sites(raw_sequence)
-
-        st.markdown("<div style='font-family: monospace; word-wrap: break-word;'>"
-                    f"{highlighted}</div>", unsafe_allow_html=True)
-        st.caption(f"🔴 Highlighted = PAM Sites (NGG) | Accession ID: {accession_id}")
-    except Exception as e:
-        st.error(f"Error fetching sequence: {e}")
+            st.markdown("<div style='font-family: monospace; word-wrap: break-word;'>"
+                        f"{highlighted}</div>", unsafe_allow_html=True)
+            st.caption(f"🔴 Highlighted = PAM Sites (NGG) | Accession ID: {accession_id}")
+        except Exception as e:
+            st.error(f"Error fetching sequence: {e}")
 
     # Footer
     st.markdown("---")
