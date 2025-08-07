@@ -181,3 +181,23 @@ LNPs are tiny fat-based particles that encapsulate CRISPR components and deliver
         "MIT’s CRISPR Explainer": "https://biology.mit.edu/understanding-crispr/"
     }
 }
+
+from Bio.Blast import NCBIWWW, NCBIXML
+
+def detect_gene_from_sequence(sequence):
+    """
+    Uses BLAST to find the closest matching gene for a given DNA sequence.
+    Returns gene name and organism if available.
+    """
+    try:
+        result_handle = NCBIWWW.qblast("blastn", "nt", sequence, hitlist_size=1)
+        blast_record = NCBIXML.read(result_handle)
+
+        if blast_record.alignments:
+            title = blast_record.alignments[0].title
+            return title  # Contains gene and organism name
+        else:
+            return "No match found."
+
+    except Exception as e:
+        return f"Error during BLAST search: {e}"
