@@ -210,19 +210,24 @@ if st.sidebar.checkbox("🧬 Show Genomic Sequence"):
         except Exception as e:
             st.error(f"❌ Error fetching sequence: {e}")
 
-       # 🧬 Optional: Detect Gene from Input DNA Sequence (Advanced)
-st.header("🧬 Experimental: Detect Gene from Sequence")
+     st.header("🧬 Experimental: Detect Gene from Sequence")
+
+st.markdown(
+    "Paste a **DNA sequence (~50–300 bp)** to auto-detect the closest matching gene from GenBank. "
+    "Results are powered by [NCBI BLAST](https://blast.ncbi.nlm.nih.gov/Blast.cgi)."
+)
 
 detect_sequence = st.text_area("Paste a DNA sequence to auto-detect gene:")
 
 if st.button("🧬 Run Gene Detection"):
-    if detect_sequence.strip():  # Check if input is not empty
+    if detect_sequence and len(detect_sequence) >= 50:
         with st.spinner("Running BLAST to detect gene..."):
-            gene_info = detect_gene_from_sequence(detect_sequence)
+            gene_info_list = detect_gene_from_sequence(detect_sequence)
             st.success("🎯 Match Found:")
-            st.code(gene_info)
+            for gene_info in gene_info_list:
+                st.code(gene_info)
     else:
-        st.warning("⚠️ Please paste a valid DNA sequence to detect the gene.")
+        st.warning("Please paste at least 50 DNA bases to perform gene detection.")
 
     # Footer
     st.markdown("---")
