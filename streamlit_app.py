@@ -14,7 +14,7 @@ from genovate_backend import (
     generate_pdf_report,
     learning_mode,
     fetch_genbank_record,
-    highlight_pam_sites
+    highlight_pam_sites,
     detect_gene_from_sequence
 )
 
