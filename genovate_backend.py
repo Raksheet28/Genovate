@@ -6,6 +6,10 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from fpdf import FPDF
 import matplotlib.pyplot as plt
+from Bio import Entrez, SeqIO
+
+# Always include your email for NCBI usage policy
+Entrez.email = "your.email@example.com"  # Replace with your actual email
 
 # 1. Simulate training data
 def load_data():
