@@ -11,6 +11,20 @@ from Bio import Entrez, SeqIO
 # Always include your email for NCBI usage policy
 Entrez.email = "your.email@example.com"  # Replace with your actual email
 
+def fetch_genbank_record(accession_id):
+    """
+    Fetch GenBank record from NCBI using Entrez and return a Biopython SeqRecord object.
+    
+    Parameters:
+    accession_id (str): NCBI accession number (e.g., 'NM_000296.4')
+    
+    Returns:
+    SeqRecord: Biopython sequence record with annotations and sequence data
+    """
+    with Entrez.efetch(db="nucleotide", id=accession_id, rettype="gb", retmode="text") as handle:
+        record = SeqIO.read(handle, "genbank")
+    return record
+
 # 1. Simulate training data
 def load_data():
     np.random.seed(42)
