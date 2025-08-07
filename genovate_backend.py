@@ -182,21 +182,44 @@ LNPs are tiny fat-based particles that encapsulate CRISPR components and deliver
     }
 }
 
-def detect_gene_from_sequence(sequence):
-    from Bio.Blast import NCBIWWW, NCBIXML
+from Bio.Blast import NCBIWWW, NCBIXML
+from Bio import Entrez
 
+Entrez.email = "your.email@example.com"  # <-- Replace with your real email (NCBI requirement)
+
+def validate_sequence_with_entrez(sequence):
+    """
+    Optional: Check if the sequence exists in the NCBI nucleotide database using Entrez.
+    """
     try:
+        handle = Entrez.esearch(db="nucleotide", term=sequence, retmax=1)
+        record = Entrez.read(handle)
+        return record["Count"] != "0"
+    except Exception:
+        return False
+
+def detect_gene_from_sequence(sequence):
+    """
+    Uses NCBI BLAST to detect the top matching gene(s) for a given DNA sequence.
+    Returns a list of up to 3 matches or an error/warning.
+    """
+    try:
+        # Optional: Pre-validate with Entrez (can be removed if unnecessary)
+        if not validate_sequence_with_entrez(sequence):
+            return ["❌ Sequence not found in Entrez nucleotide database. Please verify your input."]
+
+        # Run BLAST
         result_handle = NCBIWWW.qblast("blastn", "nt", sequence, hitlist_size=5)
         blast_record = NCBIXML.read(result_handle)
 
+        # Parse and return top 3 matches
         matches = []
-        for alignment in blast_record.alignments[:3]:  # Top 3 matches
-            hit_info = f"{alignment.hit_id} | {alignment.hit_def}"
-            matches.append(hit_info)
+        for alignment in blast_record.alignments[:3]:
+            title = alignment.hit_def.split(" ")[0:8]  # limit length of description
+            match = f"🧬 {alignment.hit_id} | {' '.join(title)}"
+            matches.append(match)
 
-        if matches:
-            return matches
-        else:
-            return ["❌ No high-confidence gene match found"]
+        return matches if matches else ["❌ No high-confidence gene match found."]
+    
     except Exception as e:
-        return [f"❌ Error running BLAST: {str(e)}"]
+        return [f"❌ Error during gene detection: {str(e)}"]
