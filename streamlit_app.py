@@ -15,6 +15,7 @@ from genovate_backend import (
     learning_mode,
     fetch_genbank_record,
     highlight_pam_sites
+    detect_gene_from_sequence
 )
 
 # Load model
