@@ -165,6 +165,25 @@ else:
         else:
             st.warning("❌ No PAM sites (NGG) found in the input.")
 
+    # Optional: Show Genomic Sequence with PAM highlights
+if st.sidebar.checkbox("🧬 Show Genomic Sequence"):
+    st.subheader("Genomic Sequence (First ~200 bases with PAM sites)")
+
+    from genovate_backend import fetch_genbank_record, highlight_pam_sites
+
+    accession_id = "NM_000296.4"  # Example: PKD1 mRNA
+    try:
+        record = fetch_genbank_record(accession_id)
+        raw_sequence = str(record.seq)[:200]
+
+        highlighted = highlight_pam_sites(raw_sequence)
+
+        st.markdown("<div style='font-family: monospace; word-wrap: break-word;'>"
+                    f"{highlighted}</div>", unsafe_allow_html=True)
+        st.caption(f"🔴 Highlighted = PAM Sites (NGG) | Accession ID: {accession_id}")
+    except Exception as e:
+        st.error(f"Error fetching sequence: {e}")
+
     # Footer
     st.markdown("---")
     st.caption("Developed by Raksheet Gummakonda for Genovate")
