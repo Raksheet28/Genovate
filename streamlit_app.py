@@ -167,23 +167,47 @@ else:
         else:
             st.warning("❌ No PAM sites (NGG) found in the input.")
 
-  # Optional: Genomic Viewer with PAM Highlighting
+ # Optional: Genomic Viewer with PAM Highlighting (Enhanced)
 if st.sidebar.checkbox("🧬 Show Genomic Sequence"):
     st.subheader("Genomic Sequence (First ~200 bases with PAM sites)")
 
-    accession_id = st.text_input("Enter NCBI Accession ID", value="NM_000296.4")
+    # Dropdown of common genes + custom option
+    common_genes = {
+        "PKD1 (Polycystic Kidney Disease)": "NM_000296.4",
+        "CFTR (Cystic Fibrosis)": "NM_000492.4",
+        "BRCA1 (Breast Cancer)": "NM_007294.4",
+        "HTT (Huntington's)": "NM_002111.8",
+        "TP53 (Tumor Suppressor)": "NM_000546.6",
+        "Custom": ""
+    }
+
+    selected_gene = st.selectbox("🔎 Select a Gene or Choose Custom:", list(common_genes.keys()))
+    accession_id = st.text_input("Enter NCBI Accession ID", value=common_genes[selected_gene] if selected_gene != "Custom" else "")
 
     if accession_id:
         try:
             record = fetch_genbank_record(accession_id)
-            raw_sequence = str(record.seq)[:200]
-            highlighted = highlight_pam_sites(raw_sequence)
 
-            st.markdown("<div style='font-family: monospace; word-wrap: break-word;'>"
-                        f"{highlighted}</div>", unsafe_allow_html=True)
-            st.caption(f"🔴 Highlighted = PAM Sites (NGG) | Accession ID: {accession_id}")
+            if record is None or not record.annotations:
+                st.error("❌ Invalid Accession ID or no data found. Please try a different one.")
+            else:
+                # Extract basic info
+                gene_name = record.name if hasattr(record, "name") else "N/A"
+                organism = record.annotations.get("organism", "Unknown Organism")
+
+                raw_sequence = str(record.seq)[:200]
+                highlighted = highlight_pam_sites(raw_sequence)
+
+                # Display details
+                st.markdown(f"**🧬 Gene:** `{gene_name}`")
+                st.markdown(f"**🌱 Organism:** `{organism}`")
+
+                st.markdown("<div style='font-family: monospace; word-wrap: break-word;'>"
+                            f"{highlighted}</div>", unsafe_allow_html=True)
+                st.caption(f"🔴 Highlighted = PAM Sites (NGG) | Accession ID: {accession_id}")
+
         except Exception as e:
-            st.error(f"Error fetching sequence: {e}")
+            st.error(f"❌ Error fetching sequence: {e}")
 
     # Footer
     st.markdown("---")
