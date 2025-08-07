@@ -11,19 +11,28 @@ from Bio import Entrez, SeqIO
 # Always include your email for NCBI usage policy
 Entrez.email = "your.email@example.com"  # Replace with your actual email
 
+from Bio import Entrez, SeqIO
+Entrez.email = "your.email@example.com"
+
 def fetch_genbank_record(accession_id):
-    """
-    Fetch GenBank record from NCBI using Entrez and return a Biopython SeqRecord object.
-    
-    Parameters:
-    accession_id (str): NCBI accession number (e.g., 'NM_000296.4')
-    
-    Returns:
-    SeqRecord: Biopython sequence record with annotations and sequence data
-    """
     with Entrez.efetch(db="nucleotide", id=accession_id, rettype="gb", retmode="text") as handle:
-        record = SeqIO.read(handle, "genbank")
-    return record
+        return SeqIO.read(handle, "genbank")
+
+def highlight_pam_sites(sequence, pam="NGG"):
+    import re
+    pam_regex = re.compile(r'(?=(.GG))')
+    highlighted = ""
+    i = 0
+    matches = [m.start(1) for m in pam_regex.finditer(sequence)]
+    while i < len(sequence):
+        if i in matches:
+            pam_seq = sequence[i:i+3]
+            highlighted += f'<span style="background-color:#FFDD57; font-weight:bold">{pam_seq}</span>'
+            i += 3
+        else:
+            highlighted += sequence[i]
+            i += 1
+    return highlighted
 
 # 1. Simulate training data
 def load_data():
