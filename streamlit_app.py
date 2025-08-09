@@ -1,8 +1,11 @@
-import streamlit as st
-import matplotlib.pyplot as plt
-import numpy as np
+# streamlit_app.py
+
 import os
+import numpy as np
+import matplotlib.pyplot as plt
+import streamlit as st
 from math import pi
+
 from genovate_backend import (
     load_data,
     train_model,
@@ -18,17 +21,26 @@ from genovate_backend import (
     detect_gene_from_sequence
 )
 
-# Load model
+# ---------------------------
+# Basic page setup
+# ---------------------------
+st.set_page_config(page_title="Genovate: CRISPR Delivery Predictor", layout="centered")
+st.title("🧬 Genovate: CRISPR/Cas9 Delivery Predictor")
+
+# ---------------------------
+# Load model (synthetic training)
+# ---------------------------
 data = load_data()
 model, le_mut, le_org, le_method = train_model(data)
 
-# UI
-st.set_page_config(page_title="Genovate", layout="centered")
-st.title("🧬 Genovate: CRISPR/Cas9 Delivery Predictor")
-
-# Sidebar for mode selection
+# ---------------------------
+# Mode switch
+# ---------------------------
 mode = st.sidebar.radio("🔍 Select Mode", ["Simulation", "📘 Learning Mode"])
 
+# ===========================
+# Learning Mode
+# ===========================
 if mode == "📘 Learning Mode":
     st.header("📘 Learning Mode: CRISPR Education Hub")
     st.markdown("Welcome to **Learning Mode** – a guide to understanding CRISPR and delivery methods.")
@@ -46,13 +58,18 @@ if mode == "📘 Learning Mode":
     for label, url in learning_mode["External Resources"].items():
         st.markdown(f"- [{label}]({url})")
 
+# ===========================
+# Simulation Mode
+# ===========================
 else:
     st.markdown("""
     Welcome to **Genovate**, a predictive simulation tool to identify the optimal CRISPR delivery method 
     for treating gene mutations like **PKD1**, **PKD2**, and **PKHD1**.
     """)
 
+    # ---------------------------
     # Inputs
+    # ---------------------------
     st.header("1️⃣ Input Your Case")
     organ_gene_map = {
         "Kidney": ["PKD1", "PKD2", "PKHD1"],
@@ -74,42 +91,54 @@ else:
     viability = st.slider("Cell Viability Post-Delivery (%)", 50, 100, 90) / 100.0
     cost = st.select_slider("Cost & Scalability (1=Low Cost, 5=High Cost)", options=[1, 2, 3, 4, 5], value=3)
 
-    # Image + Summary
+    # ---------------------------
+    # Gene image + Summary
+    # ---------------------------
     st.subheader("🔬 Gene Structure and Summary")
     col1, col2 = st.columns([1, 2])
 
     with col1:
         img_path = get_gene_image_path(mutation)
         if os.path.exists(img_path):
-            st.image(img_path, caption=f"Gene schematic for {mutation} – Mutation hotspots highlighted.", use_container_width=True)
-            st.caption("ℹ️ This diagram shows functional domains and known mutation sites.")
+            st.image(
+                img_path,
+                caption=f"Gene schematic for {mutation} – mutation hotspots highlighted.",
+                use_container_width=True
+            )
+            st.caption("ℹ️ Diagram shows exons, functional domains, and common mutation sites.")
         else:
-            st.warning("⚠️ No image available for this mutation.")
+            st.warning("⚠️ No image available for this gene yet.")
 
     with col2:
         st.markdown(f"**🧠 {mutation} Summary:**")
         st.info(get_mutation_summary(mutation))
 
-    # Predict Button
+    # ---------------------------
+    # Predict button + Radar chart
+    # ---------------------------
     if st.button("🔍 Predict Best Delivery Method"):
-        recommendation = predict_method(model, le_mut, le_org, le_method, mutation, organ, eff, off, viability, cost)
-        confidence = predict_confidence(model, le_mut, le_org, le_method, mutation, organ, eff, off, viability, cost, recommendation)
+        recommendation = predict_method(
+            model, le_mut, le_org, le_method, mutation, organ, eff, off, viability, cost
+        )
+        confidence = predict_confidence(
+            model, le_mut, le_org, le_method, mutation, organ, eff, off, viability, cost, recommendation
+        )
 
         st.success(f"🚀 Recommended Delivery Method: **{recommendation}**")
         st.metric("Model Confidence", f"{confidence:.1f}%")
         st.progress(confidence / 100.0)
 
-        # Radar chart
+        # Radar chart comparison (Efficiency / Off-target / Viability)
         st.subheader("📊 Comparison Radar Chart")
         categories = ['Efficiency', 'Off-Target Risk', 'Viability']
         N = len(categories)
 
         if recommendation == "LNP":
             method_scores = [eff, off, viability]
-            alt_scores = [0.85, 0.12, 0.75]
+            alt_scores = [0.85, 0.12, 0.75]  # baseline for Electroporation
             labels = ['LNP (Input)', 'Electroporation (Baseline)']
         else:
-            method_scores = [0.72, 0.07, 0.92]
+            method_scores = [0.72, 0.07, 0.92]  # baseline for LNP
             alt_scores = [eff, off, viability]
             labels = ['LNP (Baseline)', 'Electroporation (Input)']
 
@@ -137,7 +166,7 @@ else:
         fig.savefig(radar_path)
         st.pyplot(fig)
 
-        # PDF download
+        # PDF summary download
         st.subheader("📄 Download Summary Report")
         mutation_summary = get_mutation_summary(mutation)
         inputs = {
@@ -157,9 +186,14 @@ else:
         with open(output_path, "rb") as f:
             st.download_button("📥 Download PDF", f, file_name="Genovate_Report.pdf", mime="application/pdf")
 
-    # PAM
+    # ---------------------------
+    # PAM Finder
+    # ---------------------------
     st.header("🧬 Optional: Find PAM Sequences")
-    dna_input = st.text_area("Enter a DNA sequence:", "AGGTCGTTACCGGTAGCGGTACCGTAGGGTAGGCTAGGGTACCGGTAG")
+    dna_input = st.text_area(
+        "Enter a DNA sequence (A/C/G/T only):",
+        "AGGTCGTTACCGGTAGCGGTACCGTAGGGTAGGCTAGGGTACCGGTAG"
+    )
     if st.button("🔎 Find PAM Sites"):
         pam_sites = find_pam_sites(dna_input.upper())
         if pam_sites:
@@ -168,11 +202,13 @@ else:
         else:
             st.warning("❌ No PAM sites (NGG) found in the input.")
 
- # Optional: Genomic Viewer with PAM Highlighting (Enhanced)
-if st.sidebar.checkbox("🧬 Show Genomic Sequence"):
-    st.subheader("Genomic Sequence (First ~200 bases with PAM sites)")
+    # ---------------------------
+    # Genomic Viewer with PAM Highlights (GenBank)
+    # ---------------------------
+    st.header("🧬 Genomic Sequence Viewer (with PAM highlights)")
+    st.caption("Paste or pick an accession to view the first ~200 bases with PAM (NGG) sites highlighted.")
 
-    # Dropdown of common genes + custom option
+    # Quick-pick + custom
     common_genes = {
         "PKD1 (Polycystic Kidney Disease)": "NM_000296.4",
         "CFTR (Cystic Fibrosis)": "NM_000492.4",
@@ -181,54 +217,60 @@ if st.sidebar.checkbox("🧬 Show Genomic Sequence"):
         "TP53 (Tumor Suppressor)": "NM_000546.6",
         "Custom": ""
     }
-
     selected_gene = st.selectbox("🔎 Select a Gene or Choose Custom:", list(common_genes.keys()))
-    accession_id = st.text_input("Enter NCBI Accession ID", value=common_genes[selected_gene] if selected_gene != "Custom" else "")
+    accession_id = st.text_input(
+        "Enter NCBI Accession ID",
+        value=common_genes[selected_gene] if selected_gene != "Custom" else ""
+    )
 
     if accession_id:
         try:
             record = fetch_genbank_record(accession_id)
-
             if record is None or not record.annotations:
                 st.error("❌ Invalid Accession ID or no data found. Please try a different one.")
             else:
-                # Extract basic info
-                gene_name = record.name if hasattr(record, "name") else "N/A"
+                gene_name = getattr(record, "name", "N/A")
                 organism = record.annotations.get("organism", "Unknown Organism")
 
                 raw_sequence = str(record.seq)[:200]
-                highlighted = highlight_pam_sites(raw_sequence)
+                highlighted_html = highlight_pam_sites(raw_sequence)
 
-                # Display details
                 st.markdown(f"**🧬 Gene:** `{gene_name}`")
                 st.markdown(f"**🌱 Organism:** `{organism}`")
-
-                st.markdown("<div style='font-family: monospace; word-wrap: break-word;'>"
-                            f"{highlighted}</div>", unsafe_allow_html=True)
-                st.caption(f"🔴 Highlighted = PAM Sites (NGG) | Accession ID: {accession_id}")
-
+                st.markdown(
+                    "<div style='font-family: monospace; word-wrap: break-word;'>"
+                    f"{highlighted_html}</div>",
+                    unsafe_allow_html=True
+                )
+                st.caption(f"🔴 Highlighted = PAM Sites (NGG) • Accession ID: {accession_id}")
         except Exception as e:
             st.error(f"❌ Error fetching sequence: {e}")
-            
-# 🧬 Experimental: Detect Gene from Input DNA Sequence
-st.header("🧬 Experimental: Detect Gene from Sequence")
 
-# DNA input for gene detection
-detect_sequence = st.text_area("Paste a DNA sequence to auto-detect gene:")
+    # ---------------------------
+    # Experimental: BLAST-based gene detection from raw DNA
+    # ---------------------------
+    st.header("🧪 Experimental: Detect Gene from Sequence")
+    st.markdown("Paste a **DNA sequence (≥100 bp)** to auto-detect top gene matches via NCBI BLAST.")
+    detect_sequence = st.text_area("Paste DNA sequence to auto-detect gene:", key="detect_seq_area")
 
-if st.button("🧬 Run Gene Detection"):
-    if detect_sequence:
-        with st.spinner("Running BLAST to detect gene..."):
-            matches = detect_gene_from_sequence(detect_sequence)
-            st.success("🎯 Match Found:")
-            for match in matches:
-                if match.startswith("❌"):
-                    st.error(match)
-                else:
-                    st.code(match)
-    else:
-        st.warning("Please paste a valid DNA sequence to detect the gene.")
+    if st.button("🧬 Run Gene Detection"):
+        if detect_sequence and len(detect_sequence.strip()) >= 90:
+            with st.spinner("Running BLAST to detect gene..."):
+                matches = detect_gene_from_sequence(detect_sequence.strip())
+            if matches and isinstance(matches, list):
+                # Show up to top 3 results / or error lines from backend
+                for m in matches:
+                    if m.startswith("❌"):
+                        st.error(m)
+                    else:
+                        st.code(m)
+            else:
+                st.warning("No results returned.")
+        else:
+            st.warning("⚠️ Please paste a valid DNA sequence (≥100 bases, A/C/G/T/N only).")
 
-    # Footer
-    st.markdown("---")
-    st.caption("Developed by Raksheet Gummakonda for Genovate")
+# ---------------------------
+# Footer
+# ---------------------------
+st.markdown("---")
+st.caption("Developed by Raksheet Gummakonda for Genovate")
