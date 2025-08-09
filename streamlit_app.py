@@ -18,29 +18,27 @@ from genovate_backend import (
     learning_mode,
     fetch_genbank_record,
     highlight_pam_sites,
-    detect_gene_from_sequence
+    detect_gene_from_sequence,   # NEW BLAST version (no esearch pre-check)
 )
 
-# ---------------------------
-# Basic page setup
-# ---------------------------
+# -----------------------
+# App setup
+# -----------------------
 st.set_page_config(page_title="Genovate: CRISPR Delivery Predictor", layout="centered")
 st.title("🧬 Genovate: CRISPR/Cas9 Delivery Predictor")
 
-# ---------------------------
-# Load model (synthetic training)
-# ---------------------------
-data = load_data()
-model, le_mut, le_org, le_method = train_model(data)
+# Train (mock) model once
+_data = load_data()
+model, le_mut, le_org, le_method = train_model(_data)
 
-# ---------------------------
-# Mode switch
-# ---------------------------
+# Sidebar controls
 mode = st.sidebar.radio("🔍 Select Mode", ["Simulation", "📘 Learning Mode"])
+show_genomic_viewer = st.sidebar.checkbox("🔎 Show Genomic Sequence Viewer")
+show_seq_detect = st.sidebar.checkbox("🧪 Experimental: Detect Gene from Sequence")
 
-# ===========================
+# -----------------------
 # Learning Mode
-# ===========================
+# -----------------------
 if mode == "📘 Learning Mode":
     st.header("📘 Learning Mode: CRISPR Education Hub")
     st.markdown("Welcome to **Learning Mode** – a guide to understanding CRISPR and delivery methods.")
@@ -58,18 +56,16 @@ if mode == "📘 Learning Mode":
     for label, url in learning_mode["External Resources"].items():
         st.markdown(f"- [{label}]({url})")
 
-# ===========================
+# -----------------------
 # Simulation Mode
-# ===========================
-else:
+# -----------------------
+if mode == "Simulation":
     st.markdown("""
     Welcome to **Genovate**, a predictive simulation tool to identify the optimal CRISPR delivery method 
     for treating gene mutations like **PKD1**, **PKD2**, and **PKHD1**.
     """)
 
-    # ---------------------------
     # Inputs
-    # ---------------------------
     st.header("1️⃣ Input Your Case")
     organ_gene_map = {
         "Kidney": ["PKD1", "PKD2", "PKHD1"],
@@ -78,7 +74,7 @@ else:
         "Lung": ["CFTR", "AATD"],
         "Brain": ["HTT", "MECP2", "SCN1A"],
         "Eye": ["RPE65", "RPGR"],
-        "Pancreas": ["INS", "PDX1"]
+        "Pancreas": ["INS", "PDX1"],
     }
 
     organ = st.selectbox("Select Target Organ:", list(organ_gene_map.keys()))
@@ -89,62 +85,54 @@ else:
     eff = st.slider("Estimated Editing Efficiency (%)", 60, 100, 75) / 100.0
     off = st.slider("Estimated Off-target Risk (%)", 0, 20, 9) / 100.0
     viability = st.slider("Cell Viability Post-Delivery (%)", 50, 100, 90) / 100.0
-    cost = st.select_slider("Cost & Scalability (1=Low Cost, 5=High Cost)", options=[1, 2, 3, 4, 5], value=3)
+    cost = st.select_slider("Cost & Scalability (1=Low Cost, 5=High Cost)",
+                            options=[1, 2, 3, 4, 5], value=3)
 
-    # ---------------------------
-    # Gene image + Summary
-    # ---------------------------
+    # Gene diagram + summary
     st.subheader("🔬 Gene Structure and Summary")
-    col1, col2 = st.columns([1, 2])
+    c1, c2 = st.columns([1, 2])
 
-    with col1:
+    with c1:
         img_path = get_gene_image_path(mutation)
         if os.path.exists(img_path):
-            st.image(
-                img_path,
-                caption=f"Gene schematic for {mutation} – mutation hotspots highlighted.",
-                use_container_width=True
-            )
-            st.caption("ℹ️ Diagram shows exons, functional domains, and common mutation sites.")
+            st.image(img_path,
+                     caption=f"Gene schematic for {mutation} – mutation hotspots highlighted.",
+                     use_container_width=True)
+            st.caption("ℹ️ Diagram shows functional domains, exons, and common mutation sites.")
         else:
             st.warning("⚠️ No image available for this gene yet.")
 
-    with col2:
+    with c2:
         st.markdown(f"**🧠 {mutation} Summary:**")
         st.info(get_mutation_summary(mutation))
 
-    # ---------------------------
-    # Predict button + Radar chart
-    # ---------------------------
+    # Predict
     if st.button("🔍 Predict Best Delivery Method"):
-        recommendation = predict_method(
-            model, le_mut, le_org, le_method, mutation, organ, eff, off, viability, cost
-        )
-        confidence = predict_confidence(
-            model, le_mut, le_org, le_method, mutation, organ, eff, off, viability, cost, recommendation
-        )
+        rec = predict_method(model, le_mut, le_org, le_method,
+                             mutation, organ, eff, off, viability, cost)
+        conf = predict_confidence(model, le_mut, le_org, le_method,
+                                  mutation, organ, eff, off, viability, cost, rec)
 
-        st.success(f"🚀 Recommended Delivery Method: **{recommendation}**")
-        st.metric("Model Confidence", f"{confidence:.1f}%")
-        st.progress(confidence / 100.0)
+        st.success(f"🚀 Recommended Delivery Method: **{rec}**")
+        st.metric("Model Confidence", f"{conf:.1f}%")
+        st.progress(min(max(conf / 100.0, 0.0), 1.0))
 
-        # Radar chart comparison (Efficiency / Off-target / Viability)
+        # Radar (Spider) chart
         st.subheader("📊 Comparison Radar Chart")
-        categories = ['Efficiency', 'Off-Target Risk', 'Viability']
+        categories = ["Efficiency", "Off-Target Risk", "Viability"]
         N = len(categories)
 
-        if recommendation == "LNP":
+        if rec == "LNP":
             method_scores = [eff, off, viability]
-            alt_scores = [0.85, 0.12, 0.75]  # baseline for Electroporation
-            labels = ['LNP (Input)', 'Electroporation (Baseline)']
+            baseline = [0.85, 0.12, 0.75]
+            labels = ["LNP (Input)", "Electroporation (Baseline)"]
         else:
-            method_scores = [0.72, 0.07, 0.92]  # baseline for LNP
-            alt_scores = [eff, off, viability]
-            labels = ['LNP (Baseline)', 'Electroporation (Input)']
+            method_scores = [0.72, 0.07, 0.92]
+            baseline = [eff, off, viability]
+            labels = ["LNP (Baseline)", "Electroporation (Input)"]
 
-        values_1 = method_scores + [method_scores[0]]
-        values_2 = alt_scores + [alt_scores[0]]
-
+        vals_1 = method_scores + [method_scores[0]]
+        vals_2 = baseline + [baseline[0]]
         angles = [n / float(N) * 2 * pi for n in range(N)]
         angles += angles[:1]
 
@@ -153,22 +141,20 @@ else:
         ax.set_theta_direction(-1)
         plt.xticks(angles[:-1], categories)
 
-        ax.plot(angles, values_1, linewidth=2, linestyle='solid', label=labels[0])
-        ax.fill(angles, values_1, alpha=0.25)
+        ax.plot(angles, vals_1, linewidth=2, linestyle="solid", label=labels[0])
+        ax.fill(angles, vals_1, alpha=0.25)
 
-        ax.plot(angles, values_2, linewidth=2, linestyle='solid', label=labels[1])
-        ax.fill(angles, values_2, alpha=0.25)
+        ax.plot(angles, vals_2, linewidth=2, linestyle="solid", label=labels[1])
+        ax.fill(angles, vals_2, alpha=0.25)
 
         ax.set_ylim(0, 1)
-        plt.legend(loc='upper right', bbox_to_anchor=(0.1, 0.1))
-
+        plt.legend(loc="upper right", bbox_to_anchor=(0.1, 0.1))
         radar_path = "radar_chart.png"
-        fig.savefig(radar_path)
+        fig.savefig(radar_path, dpi=150, bbox_inches="tight")
         st.pyplot(fig)
 
-        # PDF summary download
+        # PDF download
         st.subheader("📄 Download Summary Report")
-        mutation_summary = get_mutation_summary(mutation)
         inputs = {
             "Target Organ": organ,
             "Gene Mutation": mutation,
@@ -177,100 +163,87 @@ else:
             "Off-Target Risk": f"{off*100:.1f}%",
             "Viability": f"{viability*100:.1f}%",
             "Cost": cost,
-            "Recommended Method": recommendation,
-            "Confidence": f"{confidence:.1f}%"
+            "Recommended Method": rec,
+            "Confidence": f"{conf:.1f}%",
         }
-        output_path = "Genovate_Report.pdf"
-        generate_pdf_report(inputs, mutation_summary, radar_path, output_path)
-
-        with open(output_path, "rb") as f:
+        pdf_path = "Genovate_Report.pdf"
+        generate_pdf_report(inputs, get_mutation_summary(mutation), radar_path, pdf_path)
+        with open(pdf_path, "rb") as f:
             st.download_button("📥 Download PDF", f, file_name="Genovate_Report.pdf", mime="application/pdf")
 
-    # ---------------------------
-    # PAM Finder
-    # ---------------------------
+    # PAM finder
     st.header("🧬 Optional: Find PAM Sequences")
-    dna_input = st.text_area(
-        "Enter a DNA sequence (A/C/G/T only):",
-        "AGGTCGTTACCGGTAGCGGTACCGTAGGGTAGGCTAGGGTACCGGTAG"
-    )
+    dna_input = st.text_area("Enter a DNA sequence (A/C/G/T only):",
+                             "AGGTCGTTACCGGTAGCGGTACCGTAGGGTAGGCTAGGGTACCGGTAG")
     if st.button("🔎 Find PAM Sites"):
-        pam_sites = find_pam_sites(dna_input.upper())
-        if pam_sites:
-            st.success(f"✅ Found {len(pam_sites)} PAM site(s). First 10:")
-            st.write(pam_sites[:10])
+        sites = find_pam_sites(dna_input.upper())
+        if sites:
+            st.success(f"✅ Found {len(sites)} PAM site(s). First 10:")
+            st.write(sites[:10])
         else:
-            st.warning("❌ No PAM sites (NGG) found in the input.")
+            st.warning("❌ No PAM sites (NGG) found in the input sequence.")
 
-    # ---------------------------
-    # Genomic Viewer with PAM Highlights (GenBank)
-    # ---------------------------
+# -----------------------
+# Genomic Sequence Viewer
+# -----------------------
+if show_genomic_viewer:
     st.header("🧬 Genomic Sequence Viewer (with PAM highlights)")
-    st.caption("Paste or pick an accession to view the first ~200 bases with PAM (NGG) sites highlighted.")
+    st.write("Paste or pick an accession to view the first ~200 bases with **PAM (NGG)** sites highlighted.")
 
-    # Quick-pick + custom
     common_genes = {
-        "PKD1 (Polycystic Kidney Disease)": "NM_000296.4",
+        "PKD1 (Polycystic Kidney Disease)": "NM_001009944.3",  # PKD1 isoform 1 (human) – robust record
         "CFTR (Cystic Fibrosis)": "NM_000492.4",
         "BRCA1 (Breast Cancer)": "NM_007294.4",
         "HTT (Huntington's)": "NM_002111.8",
         "TP53 (Tumor Suppressor)": "NM_000546.6",
-        "Custom": ""
+        "Custom": "",
     }
-    selected_gene = st.selectbox("🔎 Select a Gene or Choose Custom:", list(common_genes.keys()))
-    accession_id = st.text_input(
-        "Enter NCBI Accession ID",
-        value=common_genes[selected_gene] if selected_gene != "Custom" else ""
-    )
 
-    if accession_id:
+    sel = st.selectbox("🔎 Select a Gene or Choose Custom:", list(common_genes.keys()))
+    acc = st.text_input("Enter NCBI Accession ID",
+                        value=common_genes[sel] if sel != "Custom" else "")
+
+    if acc:
         try:
-            record = fetch_genbank_record(accession_id)
-            if record is None or not record.annotations:
-                st.error("❌ Invalid Accession ID or no data found. Please try a different one.")
-            else:
-                gene_name = getattr(record, "name", "N/A")
-                organism = record.annotations.get("organism", "Unknown Organism")
+            record = fetch_genbank_record(acc)
+            gene_name = getattr(record, "name", "N/A")
+            organism = record.annotations.get("organism", "Unknown organism")
 
-                raw_sequence = str(record.seq)[:200]
-                highlighted_html = highlight_pam_sites(raw_sequence)
+            st.markdown(f"**🧬 Gene:** `{gene_name}`")
+            st.markdown(f"**🌱 Organism:** `{organism}`")
 
-                st.markdown(f"**🧬 Gene:** `{gene_name}`")
-                st.markdown(f"**🌱 Organism:** `{organism}`")
-                st.markdown(
-                    "<div style='font-family: monospace; word-wrap: break-word;'>"
-                    f"{highlighted_html}</div>",
-                    unsafe_allow_html=True
-                )
-                st.caption(f"🔴 Highlighted = PAM Sites (NGG) • Accession ID: {accession_id}")
+            raw_seq = str(record.seq)[:200]
+            highlighted = highlight_pam_sites(raw_seq)
+            st.markdown(
+                f"<div style='font-family: monospace; word-wrap: break-word;'>{highlighted}</div>",
+                unsafe_allow_html=True,
+            )
+            st.caption(f"🔴 Highlighted = PAM Sites (NGG) • Accession ID: {acc}")
         except Exception as e:
             st.error(f"❌ Error fetching sequence: {e}")
 
-    # ---------------------------
-    # Experimental: BLAST-based gene detection from raw DNA
-    # ---------------------------
+# -----------------------
+# Experimental BLAST: detect gene from sequence
+# -----------------------
+if show_seq_detect:
     st.header("🧪 Experimental: Detect Gene from Sequence")
-    st.markdown("Paste a **DNA sequence (≥100 bp)** to auto-detect top gene matches via NCBI BLAST.")
-    detect_sequence = st.text_area("Paste DNA sequence to auto-detect gene:", key="detect_seq_area")
+    st.write("Paste a **DNA sequence (≥120 bp)** to auto-detect top matches via **NCBI BLAST** "
+             "(biased to *Homo sapiens* for speed).")
 
+    seq_in = st.text_area("Paste DNA sequence to auto-detect gene:", height=140)
     if st.button("🧬 Run Gene Detection"):
-        if detect_sequence and len(detect_sequence.strip()) >= 90:
-            with st.spinner("Running BLAST to detect gene..."):
-                matches = detect_gene_from_sequence(detect_sequence.strip())
-            if matches and isinstance(matches, list):
-                # Show up to top 3 results / or error lines from backend
-                for m in matches:
-                    if m.startswith("❌"):
-                        st.error(m)
-                    else:
-                        st.code(m)
-            else:
-                st.warning("No results returned.")
+        if seq_in and len(seq_in.strip()) >= 1:
+            with st.spinner("Running BLAST (may take ~10–30s)…"):
+                matches = detect_gene_from_sequence(seq_in)
+            # Show up to 3 results or any error strings
+            ok = any(not m.startswith("❌") for m in matches)
+            (st.success if ok else st.error)("🎯 Match Results:" if ok else "No high-confidence match.")
+            for m in matches:
+                st.code(m)
+            st.caption("Tip: use ≥200 bp, only A/C/G/T (N allowed). For non-human genes, remove the organism bias in backend.")
         else:
-            st.warning("⚠️ Please paste a valid DNA sequence (≥100 bases, A/C/G/T/N only).")
+            st.warning("Please paste a valid DNA sequence (A/C/G/T).")
 
-# ---------------------------
 # Footer
-# ---------------------------
 st.markdown("---")
 st.caption("Developed by Raksheet Gummakonda for Genovate")
