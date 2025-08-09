@@ -3,63 +3,80 @@
 import os
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from fpdf import FPDF
 
-# --- Biopython (required for GenBank + BLAST) ---
+# --- Biopython (NCBI + BLAST) ---
 from Bio import Entrez, SeqIO
 from Bio.Blast import NCBIWWW, NCBIXML
 
-# NCBI usage policy requires an email
-Entrez.email = "your.email@example.com"   # <-- replace with your real email
+# REQUIRED by NCBI: set your real email
+Entrez.email = "raksheetgummakonda28@gmail.com"   # <-- replace with your email
+
 
 # -------------------------------
-# GenBank helpers
+# NCBI helpers
 # -------------------------------
 def fetch_genbank_record(accession_id: str):
-    """Fetch a GenBank record by accession (e.g., 'NM_000296.4')."""
+    """Fetch a GenBank record and return a Biopython SeqRecord."""
     with Entrez.efetch(db="nucleotide", id=accession_id, rettype="gb", retmode="text") as handle:
         return SeqIO.read(handle, "genbank")
 
 
-def highlight_pam_sites(sequence: str, pam: str = "NGG"):
-    """Return HTML with PAM (NGG) triads highlighted."""
+def highlight_pam_sites(sequence: str, pam: str = "NGG") -> str:
+    """
+    Return an HTML string with PAM (NGG) motifs highlighted.
+    Designed for Streamlit's st.markdown(..., unsafe_allow_html=True).
+    """
     import re
-    pam_regex = re.compile(r'(?=(.GG))')  # N matches any base; we color the 'NGG' triplet
+    pam_regex = re.compile(r'(?=(.GG))')  # N=any base
     highlighted = []
+    seq = sequence.upper()
+
     i = 0
-    hits = {m.start(1) for m in pam_regex.finditer(sequence)}
-    while i < len(sequence):
-        if i in hits:
-            highlighted.append(f'<span style="background-color:#FFDD57; font-weight:bold">{sequence[i:i+3]}</span>')
+    matches = {m.start(1) for m in pam_regex.finditer(seq)}
+    while i < len(seq):
+        if i in matches:
+            pam_seq = seq[i:i+3]
+            highlighted.append(f'<span style="background-color:#FFDD57;font-weight:bold">{pam_seq}</span>')
             i += 3
         else:
-            highlighted.append(sequence[i])
+            highlighted.append(seq[i])
             i += 1
     return "".join(highlighted)
 
+
 # -------------------------------
-# Synthetic training data + model
+# ML data + model
 # -------------------------------
-def load_data():
+def load_data() -> pd.DataFrame:
+    """Simulate training data (replace with real data when ready)."""
     np.random.seed(42)
-    n = 200
+    num_samples = 200
     mutations = np.random.choice(
-        ['PKD1', 'PKD2', 'PKHD1', 'ATP7B', 'FAH', 'TTR',
-         'MYBPC3', 'TNNT2', 'MYH7', 'CFTR', 'AATD',
-         'HTT', 'MECP2', 'SCN1A', 'RPE65', 'RPGR', 'INS', 'PDX1'], n)
-    organs = np.random.choice(['Kidney', 'Liver', 'Heart', 'Lung', 'Brain', 'Eye', 'Pancreas'], n)
-    methods = np.random.choice(['LNP', 'Electroporation'], n)
+        ['PKD1', 'PKD2', 'PKHD1', 'ATP7B', 'FAH', 'TTR', 'MYBPC3', 'TNNT2', 'MYH7',
+         'CFTR', 'AATD', 'HTT', 'MECP2', 'SCN1A', 'RPE65', 'RPGR', 'INS', 'PDX1'],
+        num_samples
+    )
+    organs = np.random.choice(['Kidney', 'Liver', 'Heart', 'Lung', 'Brain', 'Eye', 'Pancreas'], num_samples)
+    methods = np.random.choice(['LNP', 'Electroporation'], num_samples)
 
-    efficiency = np.where(methods == 'LNP', np.random.normal(0.72, 0.05, n), np.random.normal(0.85, 0.04, n))
-    off_target = np.where(methods == 'LNP', np.random.normal(0.07, 0.02, n), np.random.normal(0.12, 0.03, n))
-    cell_viability = np.where(methods == 'LNP', np.random.normal(0.92, 0.03, n), np.random.normal(0.75, 0.05, n))
-    cost = np.where(methods == 'LNP', np.random.randint(1, 3, n), np.random.randint(3, 5, n))
+    efficiency = np.where(methods == 'LNP',
+                          np.random.normal(0.72, 0.05, num_samples),
+                          np.random.normal(0.85, 0.04, num_samples))
+    off_target = np.where(methods == 'LNP',
+                          np.random.normal(0.07, 0.02, num_samples),
+                          np.random.normal(0.12, 0.03, num_samples))
+    cell_viability = np.where(methods == 'LNP',
+                              np.random.normal(0.92, 0.03, num_samples),
+                              np.random.normal(0.75, 0.05, num_samples))
+    cost = np.where(methods == 'LNP',
+                    np.random.randint(1, 3, num_samples),
+                    np.random.randint(3, 5, num_samples))
 
-    return pd.DataFrame({
+    data = pd.DataFrame({
         "Mutation": mutations,
         "TargetOrgan": organs,
         "DeliveryMethod": methods,
@@ -68,6 +85,7 @@ def load_data():
         "CellViability": np.clip(cell_viability, 0, 1),
         "Cost": cost
     })
+    return data
 
 
 def train_model(data: pd.DataFrame):
@@ -75,67 +93,75 @@ def train_model(data: pd.DataFrame):
     le_org = LabelEncoder()
     le_method = LabelEncoder()
 
-    data["Mutation_enc"] = le_mut.fit_transform(data["Mutation"])
-    data["Organ_enc"]   = le_org.fit_transform(data["TargetOrgan"])
-    data["Method_enc"]  = le_method.fit_transform(data["DeliveryMethod"])
+    data['Mutation_enc'] = le_mut.fit_transform(data['Mutation'])
+    data['Organ_enc'] = le_org.fit_transform(data['TargetOrgan'])
+    data['Method_enc'] = le_method.fit_transform(data['DeliveryMethod'])
 
-    X = data[["Mutation_enc", "Organ_enc", "Efficiency", "OffTargetRisk", "CellViability", "Cost"]]
-    y = data["Method_enc"]
+    X = data[['Mutation_enc', 'Organ_enc', 'Efficiency', 'OffTargetRisk', 'CellViability', 'Cost']]
+    y = data['Method_enc']
 
-    Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.2, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
     model = RandomForestClassifier(n_estimators=100, random_state=42)
-    model.fit(Xtr, ytr)
+    model.fit(X_train, y_train)
+
     return model, le_mut, le_org, le_method
 
 
-def predict_method(model, le_mut, le_org, le_method, mutation, organ, eff, off, viability, cost):
-    feats = np.array([[le_mut.transform([mutation])[0],
-                       le_org.transform([organ])[0],
-                       eff, off, viability, cost]])
-    pred = model.predict(feats)[0]
+def predict_method(model, le_mut, le_org, le_method, mutation, organ, eff, off, viability, cost) -> str:
+    features = np.array([[le_mut.transform([mutation])[0],
+                          le_org.transform([organ])[0],
+                          eff, off, viability, cost]])
+    pred = model.predict(features)[0]
     return le_method.inverse_transform([pred])[0]
 
 
-def predict_confidence(model, le_mut, le_org, le_method, mutation, organ, eff, off, viability, cost, predicted_method):
-    feats = np.array([[le_mut.transform([mutation])[0],
-                       le_org.transform([organ])[0],
-                       eff, off, viability, cost]])
-    proba = model.predict_proba(feats)[0]
-    idx = le_method.transform([predicted_method])[0]
-    return proba[idx] * 100.0
+def predict_confidence(model, le_mut, le_org, le_method, mutation, organ, eff, off, viability, cost, predicted_method) -> float:
+    features = np.array([[le_mut.transform([mutation])[0],
+                          le_org.transform([organ])[0],
+                          eff, off, viability, cost]])
+    proba = model.predict_proba(features)[0]
+    method_index = le_method.transform([predicted_method])[0]
+    return proba[method_index] * 100.0
+
 
 # -------------------------------
-# PDF report
+# Report / utilities
 # -------------------------------
 def generate_pdf_report(inputs: dict, mutation_summary: str, radar_path: str, output_path: str):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
     pdf.cell(0, 10, "Genovate: CRISPR Delivery Prediction Summary", ln=True, align="C")
-    pdf.ln(8)
+    pdf.ln(10)
+
     pdf.set_font("Arial", size=11)
     for k, v in inputs.items():
         pdf.cell(0, 8, f"{k}: {v}", ln=True)
-    pdf.ln(4)
+
+    pdf.ln(5)
     pdf.multi_cell(0, 8, f"Mutation Summary: {mutation_summary}")
+
     pdf.ln(6)
     if os.path.exists(radar_path):
         pdf.image(radar_path, x=30, w=150)
+
     pdf.output(output_path)
 
-# -------------------------------
-# PAM finder
-# -------------------------------
+
 def find_pam_sites(dna_sequence: str, pam: str = "NGG"):
-    hits = []
-    for i in range(len(dna_sequence) - len(pam) + 1):
-        w = dna_sequence[i:i+len(pam)]
-        if all(b == p or p == "N" for b, p in zip(w, pam)):
-            hits.append((i, w))
-    return hits
+    """Return list of (index, window) where the PAM motif occurs."""
+    pam_sites = []
+    seq = dna_sequence.upper()
+    for i in range(len(seq) - len(pam) + 1):
+        window = seq[i:i+len(pam)]
+        match = all(b == p or p == 'N' for b, p in zip(window, pam))
+        if match:
+            pam_sites.append((i, window))
+    return pam_sites
+
 
 # -------------------------------
-# Mutation summaries + helpers
+# Content + metadata
 # -------------------------------
 mutation_summaries = {
     "PKD1": "PKD1 mutations lead to polycystic kidney disease, disrupting cell polarity and tubule formation through polycystin-1 dysfunction.",
@@ -158,89 +184,66 @@ mutation_summaries = {
     "PDX1": "PDX1 mutations impair pancreatic development, leading to diabetes due to beta-cell dysfunction."
 }
 
-def get_mutation_summary(mutation: str):
+def get_mutation_summary(mutation: str) -> str:
     return mutation_summaries.get(mutation, "No summary available for this mutation.")
 
-def get_gene_image_path(mutation: str):
+def get_gene_image_path(mutation: str) -> str:
     return os.path.join("gene_images", f"{mutation}.png")
 
-# -------------------------------
-# Learning mode content
-# -------------------------------
+
 learning_mode = {
     "CRISPR Basics": """
-CRISPR is a gene-editing tool derived from bacterial defense mechanisms. It uses an RNA guide and Cas9 enzyme to cut DNA at specific sites, allowing editing of genetic material.
+CRISPR is a gene-editing tool derived from bacterial defense mechanisms. It uses an RNA guide and Cas9 enzyme to cut DNA at specific sites, allowing precise edits to genetic material.
 """,
     "Electroporation": """
-Electroporation uses short electric pulses to transiently open pores in cell membranes so Cas9 + gRNA can enter. Common for ex vivo editing.
+Electroporation uses short electric pulses to open membrane pores so CRISPR components (Cas9 + gRNA) can enter cells. Common for ex vivo cell editing (T cells, HSCs).
 """,
     "Lipid Nanoparticles (LNPs)": """
-LNPs are lipid-based carriers that encapsulate CRISPR components and deliver them into cells, enabling systemic in vivo delivery.
+LNPs are fat-based vesicles that encapsulate CRISPR cargo (mRNA/protein/sgRNA) for systemic in vivo delivery, with strong liver tropism and improving kidney targeting.
 """,
     "External Resources": {
-        "CRISPR Tutorial (Broad Institute)": "https://www.broadinstitute.org/what-broad/areas-focus/project-spotlight/crispr",
+        "Broad CRISPR Overview": "https://www.broadinstitute.org/what-broad/areas-focus/project-spotlight/crispr",
         "Nature CRISPR Guide": "https://www.nature.com/subjects/crispr-cas9",
-        "MIT CRISPR Explainer": "https://biology.mit.edu/understanding-crispr/"
+        "NCBI Bookshelf: Genome Editing": "https://www.ncbi.nlm.nih.gov/books/"
     }
 }
 
-# -------------------------------
-# (Optional) quick pre-check against Entrez; keeps UX friendly
-# -------------------------------
-def _validate_sequence_with_entrez(seq: str) -> bool:
-    try:
-        handle = Entrez.esearch(db="nucleotide", term=seq, retmax=1)
-        record = Entrez.read(handle)
-        return record.get("Count", "0") != "0"
-    except Exception:
-        # If rate-limited/offline, allow BLAST to proceed
-        return True
 
 # -------------------------------
-# BLAST-based gene detection
+# NEW: BLAST-based gene detection (no esearch pre-check)
 # -------------------------------
 def detect_gene_from_sequence(sequence: str):
     """
-    Run BLAST (blastn) and return up to 3 best textual matches.
-    More sensitive than megablast; modest thresholds so users see something.
+    Run BLASTN on the given DNA sequence and return up to 3 top matches.
+    Assumes Biopython and outbound internet are available.
     """
-    seq = (sequence or "").strip().upper()
-    if not seq or any(c not in "ACGTN" for c in seq) or len(seq) < 90:
-        return ["❌ Invalid/short sequence. Use only A/C/G/T/N and ≥ ~100 bases."]
-
-    # Optional: pre-check
-    if not _validate_sequence_with_entrez(seq):
-        return ["❌ Sequence not found in Entrez nucleotide database. Please verify your input."]
-
     try:
-        # Use blastn for sensitivity; ask for several hits
+        # Cleanup & basic validation
+        seq = "".join(sequence.upper().split())
+        if any(ch not in "ACGTN" for ch in seq):
+            return ["❌ Input must contain only A/C/G/T (and optional N)."]
+        if len(seq) < 120:
+            return ["❌ Sequence too short for reliable BLAST. Please paste ≥120 bp."]
+
+        # BLAST tuned for speed & relevance
         result_handle = NCBIWWW.qblast(
             program="blastn",
             database="nt",
             sequence=seq,
-            hitlist_size=5,
-            expect=0.05,
-            megablast=False
+            megablast=True,        # faster for close matches
+            word_size=28,          # speed/precision tradeoff
+            expect=1e-20,          # stringent
+            entrez_query="Homo sapiens[Organism]"  # bias to human
         )
         blast_record = NCBIXML.read(result_handle)
 
-        if not blast_record.alignments:
-            return ["❌ No BLAST alignments returned. Try a longer or different region."]
-
         matches = []
         for alignment in blast_record.alignments[:3]:
-            if not alignment.hsps:
-                continue
-            hsp = alignment.hsps[0]
-            identity = (hsp.identities / max(1, hsp.align_length)) * 100.0
-            if hsp.expect <= 0.05 and identity >= 75.0:
-                title_short = " ".join(alignment.hit_def.split()[:16])
-                matches.append(
-                    f"🧬 {title_short}\n"
-                    f"   • E-value: {hsp.expect:.2e}  • Identity: {identity:.1f}%  • Score: {hsp.score}"
-                )
+            title_short = " ".join(alignment.hit_def.split()[:12])
+            hsp = alignment.hsps[0] if alignment.hsps else None
+            ident = f"{(hsp.identities / hsp.align_length * 100):.1f}%" if hsp else "n/a"
+            matches.append(f"🧬 {alignment.hit_id} | {title_short} | identity ≈ {ident}")
 
-        return matches if matches else ["❌ No high-confidence gene match found (try ≥120 bp)."]
-
+        return matches if matches else ["❌ No high-confidence gene match found."]
     except Exception as e:
-        return [f"❌ Error during BLAST/parse: {e}"]
+        return [f"❌ Error during BLAST: {e}"]
