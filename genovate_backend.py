@@ -13,8 +13,8 @@ from fpdf import FPDF
 from Bio import Entrez, SeqIO
 from Bio.Blast import NCBIWWW, NCBIXML
 
-# REQUIRED by NCBI: set your real email
-Entrez.email = "raksheetgummakonda28@gmail.com"   # <-- keep your real email here
+# REQUIRED by NCBI: set your real email (you already did, keep it)
+Entrez.email = "raksheetgummakonda28@gmail.com"
 
 
 # -------------------------------
@@ -33,15 +33,16 @@ def highlight_pam_sites(sequence: str, pam: str = "NGG") -> str:
     """
     import re
     pam_regex = re.compile(r'(?=(.GG))')  # N=any base
-    highlighted = []
     seq = sequence.upper()
-
+    highlighted = []
     i = 0
     matches = {m.start(1) for m in pam_regex.finditer(seq)}
     while i < len(seq):
         if i in matches:
             pam_seq = seq[i:i+3]
-            highlighted.append(f'<span style="background-color:#FFDD57;font-weight:bold">{pam_seq}</span>')
+            highlighted.append(
+                f'<span style="background-color:#FFDD57;font-weight:bold">{pam_seq}</span>'
+            )
             i += 3
         else:
             highlighted.append(seq[i])
@@ -57,25 +58,40 @@ def load_data() -> pd.DataFrame:
     np.random.seed(42)
     num_samples = 200
     mutations = np.random.choice(
-        ['PKD1', 'PKD2', 'PKHD1', 'ATP7B', 'FAH', 'TTR', 'MYBPC3', 'TNNT2', 'MYH7',
-         'CFTR', 'AATD', 'HTT', 'MECP2', 'SCN1A', 'RPE65', 'RPGR', 'INS', 'PDX1'],
+        [
+            "PKD1", "PKD2", "PKHD1", "ATP7B", "FAH", "TTR",
+            "MYBPC3", "TNNT2", "MYH7", "CFTR", "AATD",
+            "HTT", "MECP2", "SCN1A", "RPE65", "RPGR",
+            "INS", "PDX1"
+        ],
         num_samples
     )
-    organs = np.random.choice(['Kidney', 'Liver', 'Heart', 'Lung', 'Brain', 'Eye', 'Pancreas'], num_samples)
-    methods = np.random.choice(['LNP', 'Electroporation'], num_samples)
+    organs = np.random.choice(
+        ["Kidney", "Liver", "Heart", "Lung", "Brain", "Eye", "Pancreas"],
+        num_samples
+    )
+    methods = np.random.choice(["LNP", "Electroporation"], num_samples)
 
-    efficiency = np.where(methods == 'LNP',
-                          np.random.normal(0.72, 0.05, num_samples),
-                          np.random.normal(0.85, 0.04, num_samples))
-    off_target = np.where(methods == 'LNP',
-                          np.random.normal(0.07, 0.02, num_samples),
-                          np.random.normal(0.12, 0.03, num_samples))
-    cell_viability = np.where(methods == 'LNP',
-                              np.random.normal(0.92, 0.03, num_samples),
-                              np.random.normal(0.75, 0.05, num_samples))
-    cost = np.where(methods == 'LNP',
-                    np.random.randint(1, 3, num_samples),
-                    np.random.randint(3, 5, num_samples))
+    efficiency = np.where(
+        methods == "LNP",
+        np.random.normal(0.72, 0.05, num_samples),
+        np.random.normal(0.85, 0.04, num_samples),
+    )
+    off_target = np.where(
+        methods == "LNP",
+        np.random.normal(0.07, 0.02, num_samples),
+        np.random.normal(0.12, 0.03, num_samples),
+    )
+    cell_viability = np.where(
+        methods == "LNP",
+        np.random.normal(0.92, 0.03, num_samples),
+        np.random.normal(0.75, 0.05, num_samples),
+    )
+    cost = np.where(
+        methods == "LNP",
+        np.random.randint(1, 3, num_samples),
+        np.random.randint(3, 5, num_samples),
+    )
 
     data = pd.DataFrame({
         "Mutation": mutations,
@@ -84,7 +100,7 @@ def load_data() -> pd.DataFrame:
         "Efficiency": np.clip(efficiency, 0, 1),
         "OffTargetRisk": np.clip(off_target, 0, 1),
         "CellViability": np.clip(cell_viability, 0, 1),
-        "Cost": cost
+        "Cost": cost,
     })
     return data
 
@@ -94,12 +110,12 @@ def train_model(data: pd.DataFrame):
     le_org = LabelEncoder()
     le_method = LabelEncoder()
 
-    data['Mutation_enc'] = le_mut.fit_transform(data['Mutation'])
-    data['Organ_enc'] = le_org.fit_transform(data['TargetOrgan'])
-    data['Method_enc'] = le_method.fit_transform(data['DeliveryMethod'])
+    data["Mutation_enc"] = le_mut.fit_transform(data["Mutation"])
+    data["Organ_enc"] = le_org.fit_transform(data["TargetOrgan"])
+    data["Method_enc"] = le_method.fit_transform(data["DeliveryMethod"])
 
-    X = data[['Mutation_enc', 'Organ_enc', 'Efficiency', 'OffTargetRisk', 'CellViability', 'Cost']]
-    y = data['Method_enc']
+    X = data[["Mutation_enc", "Organ_enc", "Efficiency", "OffTargetRisk", "CellViability", "Cost"]]
+    y = data["Method_enc"]
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
     model = RandomForestClassifier(n_estimators=100, random_state=42)
@@ -109,28 +125,33 @@ def train_model(data: pd.DataFrame):
 
 
 def predict_method(model, le_mut, le_org, le_method, mutation, organ, eff, off, viability, cost) -> str:
-    features = np.array([[le_mut.transform([mutation])[0],
-                          le_org.transform([organ])[0],
-                          eff, off, viability, cost]])
+    features = np.array([[
+        le_mut.transform([mutation])[0],
+        le_org.transform([organ])[0],
+        eff, off, viability, cost
+    ]])
     pred = model.predict(features)[0]
     return le_method.inverse_transform([pred])[0]
 
 
 def predict_confidence(model, le_mut, le_org, le_method, mutation, organ, eff, off, viability, cost, predicted_method) -> float:
-    features = np.array([[le_mut.transform([mutation])[0],
-                          le_org.transform([organ])[0],
-                          eff, off, viability, cost]])
+    features = np.array([[
+        le_mut.transform([mutation])[0],
+        le_org.transform([organ])[0],
+        eff, off, viability, cost
+    ]])
     proba = model.predict_proba(features)[0]
     method_index = le_method.transform([predicted_method])[0]
     return proba[method_index] * 100.0
 
 
 # -------------------------------
-# Report / utilities
+# PDF helpers (Unicode-safe)
 # -------------------------------
 def _to_latin1(s: str) -> str:
     """
     Convert arbitrary Unicode to Latin-1 for classic FPDF fallback.
+    Replaces emojis/smart quotes so PDF creation never crashes.
     """
     if s is None:
         return ""
@@ -138,10 +159,10 @@ def _to_latin1(s: str) -> str:
         s = str(s)
 
     replacements = {
-        "\u2018": "'", "\u2019": "'",  # single quotes
-        "\u201C": '"', "\u201D": '"',  # double quotes
-        "\u2013": "-",  "\u2014": "-", # en/em dashes
-        "\u2022": "-",  "\u00A0": " ", # bullet, nbsp
+        "\u2018": "'", "\u2019": "'",
+        "\u201C": '"', "\u201D": '"',
+        "\u2013": "-",  "\u2014": "-",
+        "\u2022": "-",  "\u00A0": " ",
         "✅": "[OK]", "☑️": "[OK]", "⚠️": "[!]", "❗": "!",
         "🔴": "*", "🧬": "DNA", "📄": "Report",
     }
@@ -156,8 +177,8 @@ def _to_latin1(s: str) -> str:
 def generate_pdf_report(inputs: dict, mutation_summary: str, radar_path: str, output_path: str):
     """
     Create a compact summary PDF.
-    If a Unicode TTF font is available at ./fonts/DejaVuSans.ttf, use full Unicode.
-    Otherwise, fall back to Latin-1 sanitizer for classic FPDF.
+    If a Unicode TTF font exists at ./fonts/DejaVuSans.ttf, use full Unicode (fpdf2).
+    Otherwise, fall back to Latin-1 sanitizer so it never crashes.
     """
     font_path = os.path.join("fonts", "DejaVuSans.ttf")
     use_unicode = os.path.exists(font_path)
@@ -166,25 +187,27 @@ def generate_pdf_report(inputs: dict, mutation_summary: str, radar_path: str, ou
     pdf.set_auto_page_break(auto=True, margin=12)
     pdf.add_page()
 
+    # Build writers depending on font availability
     if use_unicode:
-        # fpdf2 Unicode path
         try:
             pdf.add_font("DejaVu", "", font_path, uni=True)
-            pdf.add_font("DejaVu", "B", font_path, uni=True)  # simple bold mapping
-            def _w(txt, *, bold=False, ln=False):
+            pdf.add_font("DejaVu", "B", font_path, uni=True)
+
+            def _w(txt, *, bold=False):
                 pdf.set_font("DejaVu", "B" if bold else "", 12 if bold else 11)
-                pdf.multi_cell(0, 7, txt, ln=ln)
+                pdf.multi_cell(0, 7, txt)
+
             def _title(txt):
                 pdf.set_font("DejaVu", "B", 14)
                 pdf.cell(0, 10, txt, ln=True, align="C")
         except Exception:
-            use_unicode = False  # fallback if font registration fails
+            use_unicode = False
 
     if not use_unicode:
-        # Latin-1 fallback wrappers
-        def _w(txt, *, bold=False, ln=False):
+        def _w(txt, *, bold=False):
             pdf.set_font("Arial", "B" if bold else "", 12 if bold else 11)
             pdf.multi_cell(0, 7, _to_latin1(txt))
+
         def _title(txt):
             pdf.set_font("Arial", "B", 14)
             pdf.cell(0, 10, _to_latin1(txt), ln=True, align="C")
@@ -206,7 +229,7 @@ def generate_pdf_report(inputs: dict, mutation_summary: str, radar_path: str, ou
 
     pdf.ln(3)
 
-    # Radar image
+    # Radar image (if available)
     if radar_path and os.path.exists(radar_path):
         try:
             img_w = 150
@@ -219,13 +242,16 @@ def generate_pdf_report(inputs: dict, mutation_summary: str, radar_path: str, ou
     pdf.output(output_path)
 
 
+# -------------------------------
+# PAM finder
+# -------------------------------
 def find_pam_sites(dna_sequence: str, pam: str = "NGG"):
     """Return list of (index, window) where the PAM motif occurs."""
     pam_sites = []
     seq = dna_sequence.upper()
     for i in range(len(seq) - len(pam) + 1):
         window = seq[i:i+len(pam)]
-        match = all(b == p or p == 'N' for b, p in zip(window, pam))
+        match = all(b == p or p == "N" for b, p in zip(window, pam))
         if match:
             pam_sites.append((i, window))
     return pam_sites
@@ -252,7 +278,7 @@ mutation_summaries = {
     "RPE65": "RPE65 mutations disrupt visual cycle enzymes, causing inherited retinal diseases like Leber congenital amaurosis.",
     "RPGR": "RPGR mutations lead to X-linked retinitis pigmentosa, causing progressive retinal degeneration.",
     "INS": "INS gene mutations affect insulin production, causing neonatal diabetes or MODY forms.",
-    "PDX1": "PDX1 mutations impair pancreatic development, leading to diabetes due to beta-cell dysfunction."
+    "PDX1": "PDX1 mutations impair pancreatic development, leading to diabetes due to beta-cell dysfunction.",
 }
 
 def get_mutation_summary(mutation: str) -> str:
@@ -281,7 +307,7 @@ LNPs are fat-based vesicles that encapsulate CRISPR cargo (mRNA/protein/sgRNA) f
 
 
 # -------------------------------
-# NEW: BLAST-based gene detection (no esearch pre-check)
+# BLAST-based gene detection (no esearch pre-check)
 # -------------------------------
 def detect_gene_from_sequence(sequence: str):
     """
