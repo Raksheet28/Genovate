@@ -7,19 +7,11 @@ import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
-from fpdf import FPDF
+from fpdf import FPDF  # fpdf2
 
 # --- Biopython (NCBI + BLAST) ---
 from Bio import Entrez, SeqIO
 from Bio.Blast import NCBIWWW, NCBIXML
-
-# -------------------------------
-# Paths (robust to working dir)
-# -------------------------------
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))           # folder where THIS file lives
-FONTS_DIR = os.path.join(BASE_DIR, "fonts")
-GENE_IMG_DIR = os.path.join(BASE_DIR, "gene_images")
-FONT_PATH = os.path.join(FONTS_DIR, "DejaVuSans.ttf")           # auto-discovered Unicode font
 
 # REQUIRED by NCBI: set your real email
 Entrez.email = "raksheetgummakonda28@gmail.com"   # <-- keep your real email here
@@ -40,7 +32,8 @@ def highlight_pam_sites(sequence: str, pam: str = "NGG") -> str:
     Designed for Streamlit's st.markdown(..., unsafe_allow_html=True).
     """
     import re
-    pam_regex = re.compile(r'(?=(.GG))')  # N=any base
+    # Only NGG highlighting is implemented here; the 'pam' arg is for future extension
+    pam_regex = re.compile(r'(?=(.GG))')  # N=any base (SpCas9)
     highlighted = []
     seq = sequence.upper()
 
@@ -134,73 +127,82 @@ def predict_confidence(model, le_mut, le_org, le_method, mutation, organ, eff, o
 
 
 # -------------------------------
-# PDF helpers (Unicode + fallback)
+# Report / utilities  (PDF FIXED)
 # -------------------------------
-def _to_latin1(s: str) -> str:
-    """
-    Convert arbitrary Unicode to Latin-1 for classic FPDF fallback.
-    """
-    if s is None:
-        return ""
-    if not isinstance(s, str):
-        s = str(s)
-
-    replacements = {
-        "\u2018": "'", "\u2019": "'",  # single quotes
-        "\u201C": '"', "\u201D": '"',  # double quotes
-        "\u2013": "-",  "\u2014": "-", # en/em dashes
-        "\u2022": "-",  "\u00A0": " ", # bullet, nbsp
-        "✅": "[OK]", "☑️": "[OK]", "⚠️": "[!]", "❗": "!",
-        "🔴": "*", "🧬": "DNA", "📄": "Report",
-    }
-    for k, v in replacements.items():
-        s = s.replace(k, v)
-
-    s = unicodedata.normalize("NFKD", s)
-    s = "".join(ch for ch in s if unicodedata.category(ch) != "Mn")
-    return s.encode("latin-1", "replace").decode("latin-1")
-
-
-def _fonts_available() -> bool:
-    """Return True if a Unicode TTF exists at fonts/DejaVuSans.ttf."""
-    return os.path.exists(FONT_PATH)
-
-
 def generate_pdf_report(inputs: dict, mutation_summary: str, radar_path: str, output_path: str):
     """
     Create a compact summary PDF.
     If a Unicode TTF font is available at ./fonts/DejaVuSans.ttf, use full Unicode.
     Otherwise, fall back to Latin-1 sanitizer for classic FPDF.
+    Also avoids 'Not enough horizontal space' by:
+      • using explicit usable width for multi_cell
+      • inserting soft breaks into long unbreakable tokens
     """
+    font_path = os.path.join("fonts", "DejaVuSans.ttf")
+    use_unicode = os.path.exists(font_path)
+
+    # Helper: break very long unbreakable tokens (IDs/URLs) so multi_cell won't choke
+    def _wrap_unbreakables(s: str, max_chunk: int = 40) -> str:
+        if not isinstance(s, str):
+            s = str(s)
+        parts = []
+        for token in s.split(" "):
+            if len(token) > max_chunk:
+                parts.append(" ".join(token[i:i+max_chunk] for i in range(0, len(token), max_chunk)))
+            else:
+                parts.append(token)
+        return " ".join(parts)
+
+    # Fallback sanitizer for classic FPDF (Latin-1)
+    def _to_latin1(s: str) -> str:
+        if s is None:
+            return ""
+        if not isinstance(s, str):
+            s = str(s)
+        replacements = {
+            "\u2018": "'", "\u2019": "'",
+            "\u201C": '"', "\u201D": '"',
+            "\u2013": "-",  "\u2014": "-",
+            "\u2022": "-",  "\u00A0": " ",
+            "✅": "[OK]", "☑️": "[OK]", "⚠️": "[!]", "❗": "!",
+            "🔴": "*", "🧬": "DNA", "📄": "Report",
+        }
+        for k, v in replacements.items():
+            s = s.replace(k, v)
+        s = unicodedata.normalize("NFKD", s)
+        s = "".join(ch for ch in s if unicodedata.category(ch) != "Mn")
+        return s.encode("latin-1", "replace").decode("latin-1")
+
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=12)
     pdf.add_page()
 
-    use_unicode = False
-    if _fonts_available():
+    # Compute an explicit usable width (avoid w=0 auto width which can trigger the error)
+    usable_w = pdf.w - pdf.l_margin - pdf.r_margin
+
+    # Font setup
+    if use_unicode:
         try:
-            pdf.add_font("DejaVu", "", FONT_PATH, uni=True)
-            # If you later add bold/italic ttf files, register them here similarly
-            use_unicode = True
+            pdf.add_font("DejaVu", "", font_path, uni=True)
+            pdf.add_font("DejaVu", "B", font_path, uni=True)
+
+            def _w(txt: str, *, bold=False):
+                pdf.set_font("DejaVu", "B" if bold else "", 12 if bold else 11)
+                pdf.multi_cell(usable_w, 7, _wrap_unbreakables(txt))
+            def _title(txt: str):
+                pdf.set_font("DejaVu", "B", 14)
+                pdf.cell(0, 10, _wrap_unbreakables(txt), ln=True, align="C")
         except Exception:
+            # If font registration fails, fall back
             use_unicode = False
 
-    if use_unicode:
-        def _w(txt, *, bold=False):
-            pdf.set_font("DejaVu", "", 12 if bold else 11)
-            if bold:
-                pdf.set_font("DejaVu", "", 12)
-            pdf.multi_cell(0, 7, txt)
-        def _title(txt):
-            pdf.set_font("DejaVu", "", 14)
-            pdf.cell(0, 10, txt, ln=True, align="C")
-    else:
-        def _w(txt, *, bold=False):
+    if not use_unicode:
+        def _w(txt: str, *, bold=False):
             pdf.set_font("Arial", "B" if bold else "", 12 if bold else 11)
-            pdf.multi_cell(0, 7, _to_latin1(txt))
-        def _title(txt):
+            pdf.multi_cell(usable_w, 7, _to_latin1(_wrap_unbreakables(txt)))
+        def _title(txt: str):
             pdf.set_font("Arial", "B", 14)
-            pdf.cell(0, 10, _to_latin1(txt), ln=True, align="C")
+            pdf.cell(0, 10, _to_latin1(_wrap_unbreakables(txt)), ln=True, align="C")
 
     # Title
     _title("Genovate: CRISPR Delivery Prediction Summary")
@@ -222,9 +224,8 @@ def generate_pdf_report(inputs: dict, mutation_summary: str, radar_path: str, ou
     # Radar image
     if radar_path and os.path.exists(radar_path):
         try:
-            img_w = 150
-            page_w = pdf.w - 2 * pdf.l_margin
-            x = pdf.l_margin + (page_w - img_w) / 2.0
+            img_w = min(150, usable_w)   # keep inside margins
+            x = pdf.l_margin + (usable_w - img_w) / 2.0
             pdf.image(radar_path, x=x, w=img_w)
         except Exception:
             _w("[Radar chart could not be embedded]")
@@ -233,7 +234,10 @@ def generate_pdf_report(inputs: dict, mutation_summary: str, radar_path: str, ou
 
 
 def find_pam_sites(dna_sequence: str, pam: str = "NGG"):
-    """Return list of (index, window) where the PAM motif occurs."""
+    """
+    Return list of (index, window) where the PAM motif occurs.
+    Supports IUPAC 'N' wildcard only (e.g., 'NGG').
+    """
     pam_sites = []
     seq = dna_sequence.upper()
     for i in range(len(seq) - len(pam) + 1):
@@ -272,8 +276,7 @@ def get_mutation_summary(mutation: str) -> str:
     return mutation_summaries.get(mutation, "No summary available for this mutation.")
 
 def get_gene_image_path(mutation: str) -> str:
-    """Return absolute path to the gene image (so Streamlit can find it reliably)."""
-    return os.path.join(GENE_IMG_DIR, f"{mutation}.png")
+    return os.path.join("gene_images", f"{mutation}.png")
 
 
 learning_mode = {
