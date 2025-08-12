@@ -3,6 +3,6 @@ matplotlib
 numpy
 pandas
 scikit-learn
-fpdf
+fpdf2
 Pillow
 biopython
