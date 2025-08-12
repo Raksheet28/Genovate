@@ -1,6 +1,7 @@
 # genovate_backend.py
 
 import os
+import unicodedata
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
@@ -13,7 +14,7 @@ from Bio import Entrez, SeqIO
 from Bio.Blast import NCBIWWW, NCBIXML
 
 # REQUIRED by NCBI: set your real email
-Entrez.email = "raksheetgummakonda28@gmail.com"   # <-- replace with your email
+Entrez.email = "raksheetgummakonda28@gmail.com"   # <-- keep your real email here
 
 
 # -------------------------------
@@ -125,25 +126,77 @@ def predict_confidence(model, le_mut, le_org, le_method, mutation, organ, eff, o
 
 
 # -------------------------------
-# Report / utilities
+# Report / utilities (Unicode-safe for FPDF)
 # -------------------------------
+def _to_latin1(s: str) -> str:
+    """
+    Convert arbitrary Unicode to Latin-1 for FPDF.
+    - Replace common smart punctuation/emojis.
+    - Strip combining marks.
+    - Encode with latin-1 using 'replace'.
+    """
+    if s is None:
+        return ""
+    if not isinstance(s, str):
+        s = str(s)
+
+    replacements = {
+        "\u2018": "'", "\u2019": "'",  # single quotes
+        "\u201C": '"', "\u201D": '"',  # double quotes
+        "\u2013": "-",  "\u2014": "-", # en/em dash
+        "\u2022": "-",  "\u00A0": " ", # bullet, nbsp
+        "✅": "[OK]", "☑️": "[OK]", "⚠️": "[!]", "❗": "!",
+        "🔴": "*", "🧬": "DNA", "📄": "Report",
+    }
+    for k, v in replacements.items():
+        s = s.replace(k, v)
+
+    s = unicodedata.normalize("NFKD", s)
+    s = "".join(ch for ch in s if unicodedata.category(ch) != "Mn")
+    return s.encode("latin-1", "replace").decode("latin-1")
+
+
 def generate_pdf_report(inputs: dict, mutation_summary: str, radar_path: str, output_path: str):
+    """
+    Create a compact summary PDF. All text is sanitized to Latin-1 for FPDF.
+    """
     pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=12)
     pdf.add_page()
-    pdf.set_font("Arial", size=12)
-    pdf.cell(0, 10, "Genovate: CRISPR Delivery Prediction Summary", ln=True, align="C")
-    pdf.ln(10)
 
-    pdf.set_font("Arial", size=11)
+    # Title
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(0, 10, _to_latin1("Genovate: CRISPR Delivery Prediction Summary"), ln=True, align="C")
+    pdf.ln(4)
+
+    # Inputs
+    pdf.set_font("Arial", "B", 11)
+    pdf.cell(0, 8, _to_latin1("Case Inputs"), ln=True)
+    pdf.set_font("Arial", "", 11)
     for k, v in inputs.items():
-        pdf.cell(0, 8, f"{k}: {v}", ln=True)
+        pdf.multi_cell(0, 7, _to_latin1(f"{k}: {v}"))
 
-    pdf.ln(5)
-    pdf.multi_cell(0, 8, f"Mutation Summary: {mutation_summary}")
+    pdf.ln(2)
 
-    pdf.ln(6)
-    if os.path.exists(radar_path):
-        pdf.image(radar_path, x=30, w=150)
+    # Mutation summary
+    pdf.set_font("Arial", "B", 11)
+    pdf.cell(0, 8, _to_latin1("Mutation Summary"), ln=True)
+    pdf.set_font("Arial", "", 11)
+    pdf.multi_cell(0, 7, _to_latin1(mutation_summary))
+
+    pdf.ln(4)
+
+    # Radar image (if present)
+    if radar_path and os.path.exists(radar_path):
+        try:
+            img_w = 150
+            page_w = pdf.w - 2 * pdf.l_margin
+            x = pdf.l_margin + (page_w - img_w) / 2.0
+            pdf.image(radar_path, x=x, w=img_w)
+        except Exception:
+            pdf.ln(2)
+            pdf.set_font("Arial", "I", 10)
+            pdf.cell(0, 8, _to_latin1("[Radar chart could not be embedded]"), ln=True)
 
     pdf.output(output_path)
 
@@ -175,7 +228,7 @@ mutation_summaries = {
     "MYH7": "MYH7 mutations impair beta-myosin heavy chain, linked to cardiomyopathies and skeletal myopathies.",
     "CFTR": "CFTR mutations cause cystic fibrosis, blocking chloride ion transport and leading to mucus buildup in lungs.",
     "AATD": "AATD mutations reduce alpha-1 antitrypsin levels, causing emphysema and liver disease.",
-    "HTT": "HTT mutations lead to Huntington’s disease, a neurodegenerative disorder affecting movement, cognition, and behavior.",
+    "HTT": "HTT mutations lead to Huntington's disease, a neurodegenerative disorder affecting movement, cognition, and behavior.",
     "MECP2": "MECP2 mutations result in Rett syndrome, affecting brain development primarily in females.",
     "SCN1A": "SCN1A mutations impair sodium channels, often causing epilepsy syndromes such as Dravet syndrome.",
     "RPE65": "RPE65 mutations disrupt visual cycle enzymes, causing inherited retinal diseases like Leber congenital amaurosis.",
