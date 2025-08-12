@@ -126,14 +126,11 @@ def predict_confidence(model, le_mut, le_org, le_method, mutation, organ, eff, o
 
 
 # -------------------------------
-# Report / utilities (Unicode-safe for FPDF)
+# Report / utilities
 # -------------------------------
 def _to_latin1(s: str) -> str:
     """
-    Convert arbitrary Unicode to Latin-1 for FPDF.
-    - Replace common smart punctuation/emojis.
-    - Strip combining marks.
-    - Encode with latin-1 using 'replace'.
+    Convert arbitrary Unicode to Latin-1 for classic FPDF fallback.
     """
     if s is None:
         return ""
@@ -143,7 +140,7 @@ def _to_latin1(s: str) -> str:
     replacements = {
         "\u2018": "'", "\u2019": "'",  # single quotes
         "\u201C": '"', "\u201D": '"',  # double quotes
-        "\u2013": "-",  "\u2014": "-", # en/em dash
+        "\u2013": "-",  "\u2014": "-", # en/em dashes
         "\u2022": "-",  "\u00A0": " ", # bullet, nbsp
         "✅": "[OK]", "☑️": "[OK]", "⚠️": "[!]", "❗": "!",
         "🔴": "*", "🧬": "DNA", "📄": "Report",
@@ -158,35 +155,58 @@ def _to_latin1(s: str) -> str:
 
 def generate_pdf_report(inputs: dict, mutation_summary: str, radar_path: str, output_path: str):
     """
-    Create a compact summary PDF. All text is sanitized to Latin-1 for FPDF.
+    Create a compact summary PDF.
+    If a Unicode TTF font is available at ./fonts/DejaVuSans.ttf, use full Unicode.
+    Otherwise, fall back to Latin-1 sanitizer for classic FPDF.
     """
+    font_path = os.path.join("fonts", "DejaVuSans.ttf")
+    use_unicode = os.path.exists(font_path)
+
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=12)
     pdf.add_page()
 
+    if use_unicode:
+        # fpdf2 Unicode path
+        try:
+            pdf.add_font("DejaVu", "", font_path, uni=True)
+            pdf.add_font("DejaVu", "B", font_path, uni=True)  # simple bold mapping
+            def _w(txt, *, bold=False, ln=False):
+                pdf.set_font("DejaVu", "B" if bold else "", 12 if bold else 11)
+                pdf.multi_cell(0, 7, txt, ln=ln)
+            def _title(txt):
+                pdf.set_font("DejaVu", "B", 14)
+                pdf.cell(0, 10, txt, ln=True, align="C")
+        except Exception:
+            use_unicode = False  # fallback if font registration fails
+
+    if not use_unicode:
+        # Latin-1 fallback wrappers
+        def _w(txt, *, bold=False, ln=False):
+            pdf.set_font("Arial", "B" if bold else "", 12 if bold else 11)
+            pdf.multi_cell(0, 7, _to_latin1(txt))
+        def _title(txt):
+            pdf.set_font("Arial", "B", 14)
+            pdf.cell(0, 10, _to_latin1(txt), ln=True, align="C")
+
     # Title
-    pdf.set_font("Arial", "B", 14)
-    pdf.cell(0, 10, _to_latin1("Genovate: CRISPR Delivery Prediction Summary"), ln=True, align="C")
-    pdf.ln(4)
+    _title("Genovate: CRISPR Delivery Prediction Summary")
+    pdf.ln(3)
 
     # Inputs
-    pdf.set_font("Arial", "B", 11)
-    pdf.cell(0, 8, _to_latin1("Case Inputs"), ln=True)
-    pdf.set_font("Arial", "", 11)
+    _w("Case Inputs", bold=True)
     for k, v in inputs.items():
-        pdf.multi_cell(0, 7, _to_latin1(f"{k}: {v}"))
+        _w(f"{k}: {v}")
 
     pdf.ln(2)
 
     # Mutation summary
-    pdf.set_font("Arial", "B", 11)
-    pdf.cell(0, 8, _to_latin1("Mutation Summary"), ln=True)
-    pdf.set_font("Arial", "", 11)
-    pdf.multi_cell(0, 7, _to_latin1(mutation_summary))
+    _w("Mutation Summary", bold=True)
+    _w(mutation_summary)
 
-    pdf.ln(4)
+    pdf.ln(3)
 
-    # Radar image (if present)
+    # Radar image
     if radar_path and os.path.exists(radar_path):
         try:
             img_w = 150
@@ -194,9 +214,7 @@ def generate_pdf_report(inputs: dict, mutation_summary: str, radar_path: str, ou
             x = pdf.l_margin + (page_w - img_w) / 2.0
             pdf.image(radar_path, x=x, w=img_w)
         except Exception:
-            pdf.ln(2)
-            pdf.set_font("Arial", "I", 10)
-            pdf.cell(0, 8, _to_latin1("[Radar chart could not be embedded]"), ln=True)
+            _w("[Radar chart could not be embedded]")
 
     pdf.output(output_path)
 
