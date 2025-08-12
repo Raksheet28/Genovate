@@ -165,6 +165,20 @@ with tab_sim:
             viability = st.slider("Cell Viability (%)", 50, 100, 90) / 100.0
             cost = st.select_slider("Cost & Scalability (1=Low Cost, 5=High Cost)", [1, 2, 3, 4, 5], value=3)
 
+        # --------- Advanced Controls (Simulation) ----------
+        if show_advanced:
+            st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
+            st.subheader("Advanced Controls")
+            ac1, ac2 = st.columns(2)
+            with ac1:
+                nuclease = st.selectbox("Nuclease (for record/report only)", ["SpCas9", "SaCas9", "AsCas12a", "LbCas12a"])
+                show_probs = st.checkbox("Show raw model class probabilities", value=True)
+            with ac2:
+                st.caption("User-weighted scoring (for explanation only):")
+                w_eff = st.slider("Weight: Efficiency", 0.0, 1.0, 0.5, 0.05)
+                w_off = st.slider("Weight: Off-target (lower is better)", 0.0, 1.0, 0.3, 0.05)
+                w_via = st.slider("Weight: Viability", 0.0, 1.0, 0.2, 0.05)
+
         st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
         run = st.button("🔍 Predict Best Delivery Method", use_container_width=True)
 
@@ -188,12 +202,35 @@ with tab_sim:
             k1, k2 = st.columns(2)
             with k1:
                 st.success(f"**Recommended Method:** {rec}")
-            # >>> REPLACED: dynamic confidence card <<<
+            # dynamic confidence card
             with k2:
                 render_confidence_card(conf)
 
             if show_confidence_bar:
                 st.progress(min(max(conf/100.0, 0.0), 1.0))
+
+            # Optional: show model probabilities table (advanced)
+            if show_advanced:
+                # build one-sample feature for proba
+                feat = np.array([[le_mut.transform([mutation])[0],
+                                  le_org.transform([organ])[0],
+                                  eff, off, viability, cost]])
+                proba = model.predict_proba(feat)[0]
+                labels = le_method.inverse_transform(np.arange(len(proba)))
+                df_probs = pd.DataFrame({"Method": labels, "Probability (%)": (proba * 100).round(2)})
+                st.markdown("**Model class probabilities**")
+                st.dataframe(df_probs, use_container_width=True)
+
+                # User-weighted scoring (for explanation only)
+                # Normalize off-target so lower is better: score_off = 1 - off
+                score_lnp = w_eff * eff + w_off * (1 - off) + w_via * viability
+                # For baseline “other method”, reuse the same constants used in the radar chart
+                if rec == "LNP":
+                    eff_other, off_other, via_other = 0.85, 0.12, 0.75
+                else:
+                    eff_other, off_other, via_other = 0.72, 0.07, 0.92
+                score_other = w_eff * eff_other + w_off * (1 - off_other) + w_via * via_other
+                st.markdown(f"*User-weighted score (for insight):* **Selected** ≈ `{score_lnp:.3f}` vs **Alt** ≈ `{score_other:.3f}`")
 
             st.markdown("### Comparison (Radar Chart)")
             categories = ["Efficiency", "Off-Target Risk", "Viability"]
@@ -241,6 +278,9 @@ with tab_sim:
                     "Recommended Method": rec,
                     "Confidence": f"{conf:.1f}%",
                 }
+                # include nuclease if advanced was enabled
+                if show_advanced:
+                    inputs["Nuclease"] = nuclease
                 pdf_path = "Genovate_Report.pdf"
                 generate_pdf_report(inputs, get_mutation_summary(mutation), radar_path, pdf_path)
                 with open(pdf_path, "rb") as f:
@@ -248,27 +288,36 @@ with tab_sim:
 
     st.markdown("---")
     st.subheader("Optional: PAM Site Finder")
+    if show_advanced:
+        pam_motif = st.text_input("PAM motif (IUPAC; default NGG)", value="NGG",
+                                  help="Use N to match any base. Example: NGG, TTTV, NNGRRT")
+    else:
+        pam_motif = "NGG"
+
     dna_input = st.text_area(
         "Enter a DNA sequence (A/C/G/T only):",
         "AGGTCGTTACCGGTAGCGGTACCGTAGGGTAGGCTAGGGTACCGGTAG",
-        help="Finds NGG motifs (SpCas9 PAM)."
+        help="Finds PAM motifs (default NGG for SpCas9)."
     )
     if st.button("🔎 Find PAM Sites", use_container_width=True):
-        sites = find_pam_sites(dna_input.upper())
+        sites = find_pam_sites(dna_input.upper(), pam=pam_motif)
         if sites:
             st.success(f"✅ Found {len(sites)} PAM site(s). Showing first 10:")
             st.write(sites[:10])
         else:
-            st.warning("❌ No NGG motifs found.")
+            st.warning(f"❌ No {pam_motif} motifs found.")
 
 # ===========================
 # 2) GENE DETECTION TAB
 # ===========================
 with tab_detect:
     st.subheader("Auto-detect Gene from DNA Sequence (BLAST)")
-    st.caption("Paste a DNA fragment (≥120 bp). The backend biases to human for speed.")
+    st.caption("Paste a DNA fragment (≥120 bp). Backend is biased to *Homo sapiens* for speed.")
 
-    seq_in = st.text_area("Paste DNA sequence (A/C/G/T/N only):", height=160, help="Tip: copy from NCBI FASTA (remove header).")
+    seq_in = st.text_area("Paste DNA sequence (A/C/G/T/N only):", height=160,
+                          help="Tip: copy from NCBI FASTA (remove header).")
+    if show_advanced:
+        st.caption("Advanced: BLAST diagnostics will display raw hits as a table.")
 
     if st.button("🧬 Run BLAST Detection", use_container_width=True):
         if not seq_in or len(seq_in.strip()) < 120:
@@ -277,7 +326,6 @@ with tab_detect:
             with st.spinner("Running BLAST (may take 10–30s)…"):
                 results = detect_gene_from_sequence(seq_in)
 
-            # Split errors and hits
             errors = [r for r in results if r.startswith("❌")]
             hits = [r for r in results if not r.startswith("❌")]
 
@@ -286,7 +334,6 @@ with tab_detect:
                     st.error(e)
 
             if hits:
-                # Parse hits into a small table: "🧬 <id> | <title> | identity ≈ X%"
                 rows = []
                 for h in hits:
                     parts = [p.strip() for p in h.replace("🧬", "").split("|")]
@@ -299,6 +346,11 @@ with tab_detect:
                     else:
                         rows.append({"Accession/ID": "", "Title": h, "Identity": ""})
                 st.dataframe(pd.DataFrame(rows), use_container_width=True)
+
+                if show_advanced:
+                    st.caption("Raw hit strings (debug):")
+                    for h in hits:
+                        st.code(h)
             if not hits and not errors:
                 st.warning("No high-confidence match found. Try a longer region (≥200 bp).")
 
@@ -323,7 +375,8 @@ with tab_viewer:
     with top[1]:
         show_len = st.slider("Bases to show", 100, 600, 200, step=50)
     with top[2]:
-        acc = st.text_input("NCBI Accession ID", value=common_genes[sel] if sel != "Custom" else "")
+        acc = st.text_input("NCBI Accession ID",
+                            value=common_genes[sel] if sel != "Custom" else "")
 
     if acc:
         try:
