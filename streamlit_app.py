@@ -20,7 +20,21 @@ from genovate_backend import (
     fetch_genbank_record,
     highlight_pam_sites,
     detect_gene_from_sequence,   # BLAST (no esearch pre-check)
+    # NEW: paths exported by backend for Unicode PDF font
+    FONTS_DIR,
+    FONT_PATH,
 )
+
+# --------------------------------------------------
+# Warn if Unicode font is missing (for PDF Unicode)
+# --------------------------------------------------
+if not os.path.exists(FONT_PATH):
+    st.warning(
+        f"⚠️ Unicode font not found at `{FONT_PATH}`. "
+        "PDFs will use fallback encoding (no emojis / some special symbols). "
+        f"Upload `DejaVuSans.ttf` to the `{FONTS_DIR}/` folder for full Unicode support.",
+        icon="⚠️",
+    )
 
 # ---- UI helper: dynamic confidence card ----
 def render_confidence_card(conf: float):
