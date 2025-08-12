@@ -22,6 +22,50 @@ from genovate_backend import (
     detect_gene_from_sequence,
 )
 
+# ---- UI helper: dynamic confidence card ----
+def render_confidence_card(conf: float):
+    """
+    Renders a colored KPI-style box for model confidence.
+    Thresholds:
+      ≥85%  -> deep green (High)
+      70–84 -> amber (Good)
+      50–69 -> orange (Moderate)
+      <50   -> red (Low)
+    """
+    if conf >= 85:
+        bg = "#155d27"   # deep green
+        label = "High ✅"
+        border = "#1f7a3a"
+    elif conf >= 70:
+        bg = "#b58100"   # amber
+        label = "Good ☑️"
+        border = "#d69e2e"
+    elif conf >= 50:
+        bg = "#b45309"   # orange-brown
+        label = "Moderate ⚠️"
+        border = "#ea580c"
+    else:
+        bg = "#7f1d1d"   # dark red
+        label = "Low ❗"
+        border = "#991b1b"
+
+    st.markdown(
+        f"""
+        <div style="
+            padding:0.6rem 0.8rem;
+            border-radius:8px;
+            background-color:{bg};
+            color:white;
+            font-weight:600;
+            text-align:center;
+            border:1px solid {border};
+            letter-spacing:0.2px;">
+            Model Confidence: {conf:.1f}% • {label}
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
 # ---------------------------
 # Page setup & light theming
 # ---------------------------
@@ -144,8 +188,10 @@ with tab_sim:
             k1, k2 = st.columns(2)
             with k1:
                 st.success(f"**Recommended Method:** {rec}")
+            # >>> REPLACED: dynamic confidence card <<<
             with k2:
-                st.markdown(f'<div class="kpi"><b>Model Confidence:</b> {conf:.1f}%</div>', unsafe_allow_html=True)
+                render_confidence_card(conf)
+
             if show_confidence_bar:
                 st.progress(min(max(conf/100.0, 0.0), 1.0))
 
@@ -245,7 +291,11 @@ with tab_detect:
                 for h in hits:
                     parts = [p.strip() for p in h.replace("🧬", "").split("|")]
                     if len(parts) >= 3:
-                        rows.append({"Accession/ID": parts[0], "Title": parts[1], "Identity": parts[2].replace("identity ≈ ", "")})
+                        rows.append({
+                            "Accession/ID": parts[0],
+                            "Title": parts[1],
+                            "Identity": parts[2].replace("identity ≈ ", "")
+                        })
                     else:
                         rows.append({"Accession/ID": "", "Title": h, "Identity": ""})
                 st.dataframe(pd.DataFrame(rows), use_container_width=True)
