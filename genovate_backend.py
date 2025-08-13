@@ -16,7 +16,6 @@ from Bio.Blast import NCBIWWW, NCBIXML
 # REQUIRED by NCBI: set your real email
 Entrez.email = "raksheetgummakonda28@gmail.com"   # <-- keep your real email here
 
-
 # -------------------------------
 # NCBI helpers
 # -------------------------------
@@ -32,7 +31,6 @@ def highlight_pam_sites(sequence: str, pam: str = "NGG") -> str:
     Designed for Streamlit's st.markdown(..., unsafe_allow_html=True).
     """
     import re
-    # Only NGG highlighting is implemented here; the 'pam' arg is for future extension
     pam_regex = re.compile(r'(?=(.GG))')  # N=any base (SpCas9)
     highlighted = []
     seq = sequence.upper()
@@ -48,7 +46,6 @@ def highlight_pam_sites(sequence: str, pam: str = "NGG") -> str:
             highlighted.append(seq[i])
             i += 1
     return "".join(highlighted)
-
 
 # -------------------------------
 # ML data + model
@@ -125,114 +122,134 @@ def predict_confidence(model, le_mut, le_org, le_method, mutation, organ, eff, o
     method_index = le_method.transform([predicted_method])[0]
     return proba[method_index] * 100.0
 
+# -------------------------------
+# PDF Report (permanent fix for width errors)
+# -------------------------------
 
-# -------------------------------
-# Report / utilities  (PDF FIXED)
-# -------------------------------
+def _wrap_unbreakables(s: str, max_chunk: int = 40, use_unicode: bool = True) -> str:
+    """
+    Insert soft break points inside long tokens so fpdf2 can wrap them.
+    - If Unicode is available, use ZERO-WIDTH SPACE (U+200B) every max_chunk chars.
+    - Otherwise, insert a normal space every max_chunk chars.
+    """
+    if s is None:
+        return ""
+    if not isinstance(s, str):
+        s = str(s)
+
+    soft = "\u200b" if use_unicode else " "  # ZWSP when possible
+    out_tokens = []
+    for token in s.split(" "):
+        if len(token) > max_chunk:
+            chunks = [token[i:i+max_chunk] for i in range(0, len(token), max_chunk)]
+            out_tokens.append(soft.join(chunks))
+        else:
+            out_tokens.append(token)
+    return " ".join(out_tokens)
+
+
+def _to_latin1_safe(s: str) -> str:
+    """Sanitize to Latin-1 for classic FPDF fallback."""
+    if s is None:
+        return ""
+    if not isinstance(s, str):
+        s = str(s)
+    replacements = {
+        "\u2018": "'", "\u2019": "'",
+        "\u201C": '"', "\u201D": '"',
+        "\u2013": "-",  "\u2014": "-",
+        "\u2022": "-",  "\u00A0": " ",
+        "✅": "[OK]", "☑️": "[OK]", "⚠️": "[!]", "❗": "!",
+        "🔴": "*", "🧬": "DNA", "📄": "Report",
+    }
+    for k, v in replacements.items():
+        s = s.replace(k, v)
+    s = unicodedata.normalize("NFKD", s)
+    s = "".join(ch for ch in s if unicodedata.category(ch) != "Mn")
+    return s.encode("latin-1", "replace").decode("latin-1")
+
+
 def generate_pdf_report(inputs: dict, mutation_summary: str, radar_path: str, output_path: str):
     """
-    Create a compact summary PDF.
-    If a Unicode TTF font is available at ./fonts/DejaVuSans.ttf, use full Unicode.
-    Otherwise, fall back to Latin-1 sanitizer for classic FPDF.
-    Also avoids 'Not enough horizontal space' by:
-      • using explicit usable width for multi_cell
-      • inserting soft breaks into long unbreakable tokens
+    Create a compact summary PDF with robust wrapping.
+    - Forces explicit usable width for all multi_cell calls (no w=0).
+    - Inserts soft break points inside long unbreakable tokens.
+    - Uses Unicode TTF if fonts/DejaVuSans.ttf exists, else Latin-1 fallback.
     """
-    font_path = os.path.join("fonts", "DejaVuSans.ttf")
-    use_unicode = os.path.exists(font_path)
-
-    # Helper: break very long unbreakable tokens (IDs/URLs) so multi_cell won't choke
-    def _wrap_unbreakables(s: str, max_chunk: int = 40) -> str:
-        if not isinstance(s, str):
-            s = str(s)
-        parts = []
-        for token in s.split(" "):
-            if len(token) > max_chunk:
-                parts.append(" ".join(token[i:i+max_chunk] for i in range(0, len(token), max_chunk)))
-            else:
-                parts.append(token)
-        return " ".join(parts)
-
-    # Fallback sanitizer for classic FPDF (Latin-1)
-    def _to_latin1(s: str) -> str:
-        if s is None:
-            return ""
-        if not isinstance(s, str):
-            s = str(s)
-        replacements = {
-            "\u2018": "'", "\u2019": "'",
-            "\u201C": '"', "\u201D": '"',
-            "\u2013": "-",  "\u2014": "-",
-            "\u2022": "-",  "\u00A0": " ",
-            "✅": "[OK]", "☑️": "[OK]", "⚠️": "[!]", "❗": "!",
-            "🔴": "*", "🧬": "DNA", "📄": "Report",
-        }
-        for k, v in replacements.items():
-            s = s.replace(k, v)
-        s = unicodedata.normalize("NFKD", s)
-        s = "".join(ch for ch in s if unicodedata.category(ch) != "Mn")
-        return s.encode("latin-1", "replace").decode("latin-1")
-
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=12)
+
+    # Normalize margins (avoid weird values that make usable width <= 0)
+    pdf.set_left_margin(12)
+    pdf.set_right_margin(12)
     pdf.add_page()
 
-    # Compute an explicit usable width (avoid w=0 auto width which can trigger the error)
+    # Explicit usable width
     usable_w = pdf.w - pdf.l_margin - pdf.r_margin
+    if usable_w <= 0:
+        # As an extra guard, force sane margins and recompute
+        pdf.set_left_margin(10)
+        pdf.set_right_margin(10)
+        usable_w = pdf.w - pdf.l_margin - pdf.r_margin
 
-    # Font setup
+    # Font selection
+    font_path = os.path.join("fonts", "DejaVuSans.ttf")
+    use_unicode = os.path.exists(font_path)
     if use_unicode:
         try:
             pdf.add_font("DejaVu", "", font_path, uni=True)
             pdf.add_font("DejaVu", "B", font_path, uni=True)
-
-            def _w(txt: str, *, bold=False):
-                pdf.set_font("DejaVu", "B" if bold else "", 12 if bold else 11)
-                pdf.multi_cell(usable_w, 7, _wrap_unbreakables(txt))
-            def _title(txt: str):
-                pdf.set_font("DejaVu", "B", 14)
-                pdf.cell(0, 10, _wrap_unbreakables(txt), ln=True, align="C")
+            body_font = ("DejaVu", "")
+            bold_font = ("DejaVu", "B")
         except Exception:
-            # If font registration fails, fall back
             use_unicode = False
 
     if not use_unicode:
-        def _w(txt: str, *, bold=False):
-            pdf.set_font("Arial", "B" if bold else "", 12 if bold else 11)
-            pdf.multi_cell(usable_w, 7, _to_latin1(_wrap_unbreakables(txt)))
-        def _title(txt: str):
-            pdf.set_font("Arial", "B", 14)
-            pdf.cell(0, 10, _to_latin1(_wrap_unbreakables(txt)), ln=True, align="C")
+        body_font = ("Arial", "")
+        bold_font = ("Arial", "B")
+
+    def title(txt: str):
+        pdf.set_font(bold_font[0], bold_font[1], 14)
+        safe = _wrap_unbreakables(txt, 40, use_unicode)
+        if not use_unicode:
+            safe = _to_latin1_safe(safe)
+        pdf.cell(0, 10, safe, ln=True, align="C")
+
+    def line(txt: str, bold: bool = False):
+        pdf.set_font(*(bold_font if bold else body_font), 12 if bold else 11)
+        safe = _wrap_unbreakables(txt, 40, use_unicode)
+        if not use_unicode:
+            safe = _to_latin1_safe(safe)
+        # THE FIX: always pass explicit width (usable_w), never 0
+        pdf.multi_cell(usable_w, 7, safe)
 
     # Title
-    _title("Genovate: CRISPR Delivery Prediction Summary")
-    pdf.ln(3)
-
-    # Inputs
-    _w("Case Inputs", bold=True)
-    for k, v in inputs.items():
-        _w(f"{k}: {v}")
-
+    title("Genovate: CRISPR Delivery Prediction Summary")
     pdf.ln(2)
 
-    # Mutation summary
-    _w("Mutation Summary", bold=True)
-    _w(mutation_summary)
+    # Inputs
+    line("Case Inputs", bold=True)
+    for k, v in inputs.items():
+        line(f"{k}: {v}")
 
-    pdf.ln(3)
+    pdf.ln(1)
+    line("Mutation Summary", bold=True)
+    line(mutation_summary)
 
-    # Radar image
+    pdf.ln(2)
     if radar_path and os.path.exists(radar_path):
         try:
-            img_w = min(150, usable_w)   # keep inside margins
+            img_w = min(150, usable_w)   # inside margins
             x = pdf.l_margin + (usable_w - img_w) / 2.0
             pdf.image(radar_path, x=x, w=img_w)
         except Exception:
-            _w("[Radar chart could not be embedded]")
+            line("[Radar chart could not be embedded]")
 
     pdf.output(output_path)
 
-
+# -------------------------------
+# PAM finder (with simple IUPAC N support)
+# -------------------------------
 def find_pam_sites(dna_sequence: str, pam: str = "NGG"):
     """
     Return list of (index, window) where the PAM motif occurs.
@@ -246,7 +263,6 @@ def find_pam_sites(dna_sequence: str, pam: str = "NGG"):
         if match:
             pam_sites.append((i, window))
     return pam_sites
-
 
 # -------------------------------
 # Content + metadata
@@ -278,7 +294,6 @@ def get_mutation_summary(mutation: str) -> str:
 def get_gene_image_path(mutation: str) -> str:
     return os.path.join("gene_images", f"{mutation}.png")
 
-
 learning_mode = {
     "CRISPR Basics": """
 CRISPR is a gene-editing tool derived from bacterial defense mechanisms. It uses an RNA guide and Cas9 enzyme to cut DNA at specific sites, allowing precise edits to genetic material.
@@ -295,7 +310,6 @@ LNPs are fat-based vesicles that encapsulate CRISPR cargo (mRNA/protein/sgRNA) f
         "NCBI Bookshelf: Genome Editing": "https://www.ncbi.nlm.nih.gov/books/"
     }
 }
-
 
 # -------------------------------
 # BLAST-based gene detection (no esearch pre-check)
