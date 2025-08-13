@@ -1,13 +1,12 @@
 # genovate_backend.py
 
 import os
-import unicodedata
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
-from fpdf import FPDF  # fpdf2
+from fpdf import FPDF
 
 # --- Biopython (NCBI + BLAST) ---
 from Bio import Entrez, SeqIO
@@ -15,6 +14,7 @@ from Bio.Blast import NCBIWWW, NCBIXML
 
 # REQUIRED by NCBI: set your real email
 Entrez.email = "raksheetgummakonda28@gmail.com"   # <-- keep your real email here
+
 
 # -------------------------------
 # NCBI helpers
@@ -31,7 +31,7 @@ def highlight_pam_sites(sequence: str, pam: str = "NGG") -> str:
     Designed for Streamlit's st.markdown(..., unsafe_allow_html=True).
     """
     import re
-    pam_regex = re.compile(r'(?=(.GG))')  # N=any base (SpCas9)
+    pam_regex = re.compile(r'(?=(.GG))')  # N=any base
     highlighted = []
     seq = sequence.upper()
 
@@ -46,6 +46,7 @@ def highlight_pam_sites(sequence: str, pam: str = "NGG") -> str:
             highlighted.append(seq[i])
             i += 1
     return "".join(highlighted)
+
 
 # -------------------------------
 # ML data + model
@@ -122,10 +123,10 @@ def predict_confidence(model, le_mut, le_org, le_method, mutation, organ, eff, o
     method_index = le_method.transform([predicted_method])[0]
     return proba[method_index] * 100.0
 
-# -------------------------------
-# PDF Report (permanent fix for width errors)
-# -------------------------------
 
+# -------------------------------
+# PDF Report (robust wrapping; fixes width error)
+# -------------------------------
 def _wrap_unbreakables(s: str, max_chunk: int = 40, use_unicode: bool = True) -> str:
     """
     Insert soft break points inside long tokens so fpdf2 can wrap them.
@@ -137,7 +138,7 @@ def _wrap_unbreakables(s: str, max_chunk: int = 40, use_unicode: bool = True) ->
     if not isinstance(s, str):
         s = str(s)
 
-    soft = "\u200b" if use_unicode else " "  # ZWSP when possible
+    soft = "\u200b" if use_unicode else " "
     out_tokens = []
     for token in s.split(" "):
         if len(token) > max_chunk:
@@ -150,10 +151,12 @@ def _wrap_unbreakables(s: str, max_chunk: int = 40, use_unicode: bool = True) ->
 
 def _to_latin1_safe(s: str) -> str:
     """Sanitize to Latin-1 for classic FPDF fallback."""
+    import unicodedata as _ud
     if s is None:
         return ""
     if not isinstance(s, str):
         s = str(s)
+
     replacements = {
         "\u2018": "'", "\u2019": "'",
         "\u201C": '"', "\u201D": '"',
@@ -164,30 +167,30 @@ def _to_latin1_safe(s: str) -> str:
     }
     for k, v in replacements.items():
         s = s.replace(k, v)
-    s = unicodedata.normalize("NFKD", s)
-    s = "".join(ch for ch in s if unicodedata.category(ch) != "Mn")
+
+    s = _ud.normalize("NFKD", s)
+    s = "".join(ch for ch in s if _ud.category(ch) != "Mn")
     return s.encode("latin-1", "replace").decode("latin-1")
 
 
 def generate_pdf_report(inputs: dict, mutation_summary: str, radar_path: str, output_path: str):
     """
     Create a compact summary PDF with robust wrapping.
-    - Forces explicit usable width for all multi_cell calls (no w=0).
+    - Uses explicit usable width for all multi_cell calls (no w=0).
     - Inserts soft break points inside long unbreakable tokens.
     - Uses Unicode TTF if fonts/DejaVuSans.ttf exists, else Latin-1 fallback.
     """
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=12)
 
-    # Normalize margins (avoid weird values that make usable width <= 0)
+    # Safe margins and page
     pdf.set_left_margin(12)
     pdf.set_right_margin(12)
     pdf.add_page()
 
-    # Explicit usable width
+    # Explicit usable width to avoid the "Not enough horizontal space" exception
     usable_w = pdf.w - pdf.l_margin - pdf.r_margin
     if usable_w <= 0:
-        # As an extra guard, force sane margins and recompute
         pdf.set_left_margin(10)
         pdf.set_right_margin(10)
         usable_w = pdf.w - pdf.l_margin - pdf.r_margin
@@ -215,12 +218,12 @@ def generate_pdf_report(inputs: dict, mutation_summary: str, radar_path: str, ou
             safe = _to_latin1_safe(safe)
         pdf.cell(0, 10, safe, ln=True, align="C")
 
-    def line(txt: str, bold: bool = False):
-        pdf.set_font(*(bold_font if bold else body_font), 12 if bold else 11)
+    def line(txt: str, bold: bool = False, size: int = 11):
+        pdf.set_font(*(bold_font if bold else body_font), size)
         safe = _wrap_unbreakables(txt, 40, use_unicode)
         if not use_unicode:
             safe = _to_latin1_safe(safe)
-        # THE FIX: always pass explicit width (usable_w), never 0
+        # IMPORTANT: explicit width (usable_w), never 0
         pdf.multi_cell(usable_w, 7, safe)
 
     # Title
@@ -228,18 +231,18 @@ def generate_pdf_report(inputs: dict, mutation_summary: str, radar_path: str, ou
     pdf.ln(2)
 
     # Inputs
-    line("Case Inputs", bold=True)
+    line("Case Inputs", bold=True, size=12)
     for k, v in inputs.items():
         line(f"{k}: {v}")
 
     pdf.ln(1)
-    line("Mutation Summary", bold=True)
+    line("Mutation Summary", bold=True, size=12)
     line(mutation_summary)
 
     pdf.ln(2)
     if radar_path and os.path.exists(radar_path):
         try:
-            img_w = min(150, usable_w)   # inside margins
+            img_w = min(150, usable_w)
             x = pdf.l_margin + (usable_w - img_w) / 2.0
             pdf.image(radar_path, x=x, w=img_w)
         except Exception:
@@ -247,14 +250,12 @@ def generate_pdf_report(inputs: dict, mutation_summary: str, radar_path: str, ou
 
     pdf.output(output_path)
 
+
 # -------------------------------
-# PAM finder (with simple IUPAC N support)
+# PAM finder
 # -------------------------------
 def find_pam_sites(dna_sequence: str, pam: str = "NGG"):
-    """
-    Return list of (index, window) where the PAM motif occurs.
-    Supports IUPAC 'N' wildcard only (e.g., 'NGG').
-    """
+    """Return list of (index, window) where the PAM motif occurs."""
     pam_sites = []
     seq = dna_sequence.upper()
     for i in range(len(seq) - len(pam) + 1):
@@ -263,6 +264,7 @@ def find_pam_sites(dna_sequence: str, pam: str = "NGG"):
         if match:
             pam_sites.append((i, window))
     return pam_sites
+
 
 # -------------------------------
 # Content + metadata
@@ -294,6 +296,7 @@ def get_mutation_summary(mutation: str) -> str:
 def get_gene_image_path(mutation: str) -> str:
     return os.path.join("gene_images", f"{mutation}.png")
 
+
 learning_mode = {
     "CRISPR Basics": """
 CRISPR is a gene-editing tool derived from bacterial defense mechanisms. It uses an RNA guide and Cas9 enzyme to cut DNA at specific sites, allowing precise edits to genetic material.
@@ -310,6 +313,7 @@ LNPs are fat-based vesicles that encapsulate CRISPR cargo (mRNA/protein/sgRNA) f
         "NCBI Bookshelf: Genome Editing": "https://www.ncbi.nlm.nih.gov/books/"
     }
 }
+
 
 # -------------------------------
 # BLAST-based gene detection (no esearch pre-check)
