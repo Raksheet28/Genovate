@@ -1,6 +1,7 @@
 # genovate_backend.py
 
 import os
+import unicodedata
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
@@ -125,135 +126,168 @@ def predict_confidence(model, le_mut, le_org, le_method, mutation, organ, eff, o
 
 
 # -------------------------------
-# PDF Report (robust wrapping; fixes width error)
+# PDF helpers (robust wrapping)
 # -------------------------------
-def _wrap_unbreakables(s: str, max_chunk: int = 40, use_unicode: bool = True) -> str:
+def _to_latin1(s: str) -> str:
     """
-    Insert soft break points inside long tokens so fpdf2 can wrap them.
-    - If Unicode is available, use ZERO-WIDTH SPACE (U+200B) every max_chunk chars.
-    - Otherwise, insert a normal space every max_chunk chars.
+    Convert arbitrary Unicode to Latin-1 for classic FPDF fallback.
     """
-    if s is None:
-        return ""
-    if not isinstance(s, str):
-        s = str(s)
-
-    soft = "\u200b" if use_unicode else " "
-    out_tokens = []
-    for token in s.split(" "):
-        if len(token) > max_chunk:
-            chunks = [token[i:i+max_chunk] for i in range(0, len(token), max_chunk)]
-            out_tokens.append(soft.join(chunks))
-        else:
-            out_tokens.append(token)
-    return " ".join(out_tokens)
-
-
-def _to_latin1_safe(s: str) -> str:
-    """Sanitize to Latin-1 for classic FPDF fallback."""
-    import unicodedata as _ud
     if s is None:
         return ""
     if not isinstance(s, str):
         s = str(s)
 
     replacements = {
-        "\u2018": "'", "\u2019": "'",
-        "\u201C": '"', "\u201D": '"',
-        "\u2013": "-",  "\u2014": "-",
-        "\u2022": "-",  "\u00A0": " ",
+        "\u2018": "'", "\u2019": "'",  # single quotes
+        "\u201C": '"', "\u201D": '"',  # double quotes
+        "\u2013": "-",  "\u2014": "-", # en/em dashes
+        "\u2022": "-",  "\u00A0": " ", # bullet, nbsp
         "✅": "[OK]", "☑️": "[OK]", "⚠️": "[!]", "❗": "!",
         "🔴": "*", "🧬": "DNA", "📄": "Report",
     }
     for k, v in replacements.items():
         s = s.replace(k, v)
 
-    s = _ud.normalize("NFKD", s)
-    s = "".join(ch for ch in s if _ud.category(ch) != "Mn")
+    s = unicodedata.normalize("NFKD", s)
+    s = "".join(ch for ch in s if unicodedata.category(ch) != "Mn")
     return s.encode("latin-1", "replace").decode("latin-1")
 
 
+def _chunk_word_to_fit(pdf: FPDF, word: str, max_w: float):
+    """
+    Break a single long 'word' (no spaces) into chunks that fit within max_w.
+    """
+    chunks = []
+    cur = ""
+    for ch in word:
+        w = pdf.get_string_width(cur + ch)
+        if w <= max_w or not cur:
+            cur += ch
+        else:
+            chunks.append(cur)
+            cur = ch
+    if cur:
+        chunks.append(cur)
+    return chunks
+
+
+def _wrap_text_to_width(pdf: FPDF, text: str, max_w: float):
+    """
+    Wrap text to a given width using font metrics; splits overlong tokens safely.
+    Returns list of lines that each fit within max_w.
+    """
+    lines_out = []
+    # Normalize line breaks first
+    for para in (text or "").splitlines():
+        words = para.split(" ")
+        line = ""
+        for w in words:
+            # Empty (multiple spaces) -> treat as space
+            token = w if w != "" else " "
+            tentative = (line + " " + token).strip() if line else token
+            if pdf.get_string_width(tentative) <= max_w:
+                line = tentative
+            else:
+                if line:
+                    lines_out.append(line)
+                # token itself may be too wide; split it
+                if pdf.get_string_width(token) > max_w:
+                    for part in _chunk_word_to_fit(pdf, token, max_w):
+                        if pdf.get_string_width(part) <= max_w:
+                            lines_out.append(part)
+                        else:
+                            # Extremely pathological; still push
+                            lines_out.append(part[:1])
+                            lines_out.append(part[1:])
+                    line = ""
+                else:
+                    line = token
+        if line:
+            lines_out.append(line)
+    return lines_out
+
+
+# -------------------------------
+# Report / utilities
+# -------------------------------
 def generate_pdf_report(inputs: dict, mutation_summary: str, radar_path: str, output_path: str):
     """
-    Create a compact summary PDF with robust wrapping.
-    - Uses explicit usable width for all multi_cell calls (no w=0).
-    - Inserts soft break points inside long unbreakable tokens.
-    - Uses Unicode TTF if fonts/DejaVuSans.ttf exists, else Latin-1 fallback.
+    Create a compact summary PDF.
+    - Uses full Unicode if fonts/DejaVuSans.ttf exists
+    - Otherwise falls back to Latin-1 with sanitization
+    - NEVER calls multi_cell (avoids 'Not enough horizontal space...' errors)
     """
-    pdf = FPDF()
-    pdf.set_auto_page_break(auto=True, margin=12)
-
-    # Safe margins and page
-    pdf.set_left_margin(12)
-    pdf.set_right_margin(12)
-    pdf.add_page()
-
-    # Explicit usable width to avoid the "Not enough horizontal space" exception
-    usable_w = pdf.w - pdf.l_margin - pdf.r_margin
-    if usable_w <= 0:
-        pdf.set_left_margin(10)
-        pdf.set_right_margin(10)
-        usable_w = pdf.w - pdf.l_margin - pdf.r_margin
-
-    # Font selection
     font_path = os.path.join("fonts", "DejaVuSans.ttf")
     use_unicode = os.path.exists(font_path)
+
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+    pdf.set_margins(left=15, top=15, right=15)
+
+    content_w = pdf.w - pdf.l_margin - pdf.r_margin  # usable width
+
+    # Font setup
     if use_unicode:
         try:
             pdf.add_font("DejaVu", "", font_path, uni=True)
             pdf.add_font("DejaVu", "B", font_path, uni=True)
-            body_font = ("DejaVu", "")
-            bold_font = ("DejaVu", "B")
+            def set_font(bold=False, size=11):
+                pdf.set_font("DejaVu", "B" if bold else "", size)
+            sanitizer = (lambda s: s)  # no sanitize needed
         except Exception:
             use_unicode = False
 
     if not use_unicode:
-        body_font = ("Arial", "")
-        bold_font = ("Arial", "B")
-
-    def title(txt: str):
-        pdf.set_font(bold_font[0], bold_font[1], 14)
-        safe = _wrap_unbreakables(txt, 40, use_unicode)
-        if not use_unicode:
-            safe = _to_latin1_safe(safe)
-        pdf.cell(0, 10, safe, ln=True, align="C")
-
-    def line(txt: str, bold: bool = False, size: int = 11):
-        pdf.set_font(*(bold_font if bold else body_font), size)
-        safe = _wrap_unbreakables(txt, 40, use_unicode)
-        if not use_unicode:
-            safe = _to_latin1_safe(safe)
-        # IMPORTANT: explicit width (usable_w), never 0
-        pdf.multi_cell(usable_w, 7, safe)
+        def set_font(bold=False, size=11):
+            pdf.set_font("Arial", "B" if bold else "", size)
+        sanitizer = _to_latin1
 
     # Title
-    title("Genovate: CRISPR Delivery Prediction Summary")
+    set_font(bold=True, size=14)
+    title = sanitizer("Genovate: CRISPR Delivery Prediction Summary")
+    pdf.cell(0, 10, title, ln=1, align="C")
     pdf.ln(2)
 
-    # Inputs
-    line("Case Inputs", bold=True, size=12)
-    for k, v in inputs.items():
-        line(f"{k}: {v}")
+    # Section: Case Inputs
+    set_font(bold=True, size=12)
+    pdf.cell(0, 8, sanitizer("Case Inputs"), ln=1)
+    set_font(size=11)
 
-    pdf.ln(1)
-    line("Mutation Summary", bold=True, size=12)
-    line(mutation_summary)
+    def write_wrapped(text: str, line_h: float = 7):
+        # Wrap and write each line safely
+        safe = sanitizer(text)
+        for ln in _wrap_text_to_width(pdf, safe, content_w):
+            pdf.cell(0, line_h, ln, ln=1)
+
+    # Inputs block
+    for k, v in (inputs or {}).items():
+        write_wrapped(f"{k}: {v}")
 
     pdf.ln(2)
+
+    # Section: Mutation summary
+    set_font(bold=True, size=12)
+    pdf.cell(0, 8, sanitizer("Mutation Summary"), ln=1)
+    set_font(size=11)
+    write_wrapped(mutation_summary, line_h=7)
+
+    pdf.ln(3)
+
+    # Radar image (if present)
     if radar_path and os.path.exists(radar_path):
         try:
-            img_w = min(150, usable_w)
-            x = pdf.l_margin + (usable_w - img_w) / 2.0
+            img_w = min(160, content_w)  # keep inside margins
+            x = pdf.l_margin + (content_w - img_w) / 2.0
             pdf.image(radar_path, x=x, w=img_w)
         except Exception:
-            line("[Radar chart could not be embedded]")
+            set_font(size=11)
+            write_wrapped("[Radar chart could not be embedded]")
 
+    # Output
     pdf.output(output_path)
 
 
-# -------------------------------
-# PAM finder
-# -------------------------------
 def find_pam_sites(dna_sequence: str, pam: str = "NGG"):
     """Return list of (index, window) where the PAM motif occurs."""
     pam_sites = []
@@ -316,7 +350,7 @@ LNPs are fat-based vesicles that encapsulate CRISPR cargo (mRNA/protein/sgRNA) f
 
 
 # -------------------------------
-# BLAST-based gene detection (no esearch pre-check)
+# NEW: BLAST-based gene detection (no esearch pre-check)
 # -------------------------------
 def detect_gene_from_sequence(sequence: str):
     """
