@@ -20,21 +20,7 @@ from genovate_backend import (
     fetch_genbank_record,
     highlight_pam_sites,
     detect_gene_from_sequence,   # BLAST (no esearch pre-check)
-    # NEW: paths exported by backend for Unicode PDF font
-    FONTS_DIR,
-    FONT_PATH,
 )
-
-# --------------------------------------------------
-# Warn if Unicode font is missing (for PDF Unicode)
-# --------------------------------------------------
-if not os.path.exists(FONT_PATH):
-    st.warning(
-        f"⚠️ Unicode font not found at `{FONT_PATH}`. "
-        "PDFs will use fallback encoding (no emojis / some special symbols). "
-        f"Upload `DejaVuSans.ttf` to the `{FONTS_DIR}/` folder for full Unicode support.",
-        icon="⚠️",
-    )
 
 # ---- UI helper: dynamic confidence card ----
 def render_confidence_card(conf: float):
@@ -332,6 +318,8 @@ with tab_sim:
             # --- PDF download (includes advanced metadata) ---
             if show_pdf_download:
                 st.markdown("#### 📄 Download Summary Report")
+
+                # Base inputs
                 inputs = {
                     "Target Organ": organ,
                     "Gene Mutation": mutation,
@@ -343,6 +331,8 @@ with tab_sim:
                     "Recommended Method": rec,
                     "Confidence": f"{conf:.1f}%",
                 }
+
+                # OPTIONAL: enrich report with advanced metadata when enabled
                 if show_advanced:
                     inputs["Nuclease"] = nuclease
                     if 'use_heuristic' in locals() and use_heuristic:
@@ -351,8 +341,13 @@ with tab_sim:
                         inputs["Blend α"] = f"{blend_alpha:.2f}"
                     else:
                         inputs["Decision Mode"] = "Model"
+
                 pdf_path = "Genovate_Report.pdf"
                 generate_pdf_report(inputs, get_mutation_summary(mutation), radar_path, pdf_path)
+
+                # NEW: toast confirmation after generating the PDF
+                st.toast("PDF report generated ✅", icon="📄")
+
                 with open(pdf_path, "rb") as f:
                     st.download_button("📥 Download PDF", f, file_name="Genovate_Report.pdf", mime="application/pdf")
 
