@@ -15,7 +15,7 @@ from genovate_backend import (
     find_pam_sites,
     get_gene_image_path,
     get_mutation_summary,
-    generate_pdf_report,
+    generate_pdf_report,     # now returns BYTES
     learning_mode,
     fetch_genbank_record,
     highlight_pam_sites,
@@ -63,7 +63,7 @@ st.markdown(
     """
 <style>
 .block-container {padding-top: 1.0rem; padding-bottom: 1.2rem;}
-.stButton>button {background-color:#2e86de;color:white;border-radius:8px;}
+.stButton>button, .stDownloadButton>button {background-color:#2e86de;color:white;border-radius:8px;}
 .kpi {padding:0.6rem 0.8rem;border-radius:8px;background:#f8f9fa;border:1px solid #e9ecef;}
 .codebox {font-family: ui-monospace, Menlo, Consolas, monospace;}
 .section-divider {margin: 0.6rem 0;}
@@ -119,51 +119,54 @@ with tab_sim:
 
     left, right = st.columns([1.05, 1.0])
 
+    # ---------- LEFT: inputs (wrapped in a form to prevent flicker) ----------
     with left:
-        st.subheader("Case Setup")
-        organ_gene_map = {
-            "Kidney": ["PKD1", "PKD2", "PKHD1"],
-            "Liver": ["ATP7B", "FAH", "TTR"],
-            "Heart": ["MYBPC3", "TNNT2", "MYH7"],
-            "Lung": ["CFTR", "AATD"],
-            "Brain": ["HTT", "MECP2", "SCN1A"],
-            "Eye": ["RPE65", "RPGR"],
-            "Pancreas": ["INS", "PDX1"],
-        }
-        organ = st.selectbox("Target Organ", list(organ_gene_map.keys()))
-        mutation = st.selectbox("Gene Mutation", organ_gene_map[organ])
-        therapy_type = st.radio("Therapy Type", ["Ex vivo", "In vivo"], horizontal=True)
+        with st.form("sim_form", clear_on_submit=False):
+            st.subheader("Case Setup")
+            organ_gene_map = {
+                "Kidney": ["PKD1", "PKD2", "PKHD1"],
+                "Liver": ["ATP7B", "FAH", "TTR"],
+                "Heart": ["MYBPC3", "TNNT2", "MYH7"],
+                "Lung": ["CFTR", "AATD"],
+                "Brain": ["HTT", "MECP2", "SCN1A"],
+                "Eye": ["RPE65", "RPGR"],
+                "Pancreas": ["INS", "PDX1"],
+            }
+            organ = st.selectbox("Target Organ", list(organ_gene_map.keys()))
+            mutation = st.selectbox("Gene Mutation", organ_gene_map[organ])
+            therapy_type = st.radio("Therapy Type", ["Ex vivo", "In vivo"], horizontal=True)
 
-        st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
-        st.subheader("Clinical Parameters")
-        c1, c2 = st.columns(2)
-        with c1:
-            eff = st.slider("Editing Efficiency (%)", 60, 100, 75) / 100.0
-            off = st.slider("Off-target Risk (%)", 0, 20, 9) / 100.0
-        with c2:
-            viability = st.slider("Cell Viability (%)", 50, 100, 90) / 100.0
-            cost = st.select_slider("Cost & Scalability (1=Low Cost, 5=High Cost)", [1, 2, 3, 4, 5], value=3)
-
-        # Advanced Controls
-        if show_advanced:
             st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
-            st.subheader("Advanced Controls")
-            ac1, ac2 = st.columns(2)
-            with ac1:
-                nuclease = st.selectbox("Nuclease (for record/report only)", ["SpCas9", "SaCas9", "AsCas12a", "LbCas12a"])
-                show_probs = st.checkbox("Show raw model class probabilities", value=True)
-                use_heuristic = st.checkbox("Use weighted heuristic instead of model (experimental)", value=False)
-            with ac2:
-                st.caption("User-weighted scoring (used when heuristic is enabled):")
-                w_eff = st.slider("Weight: Efficiency", 0.0, 1.0, 0.5, 0.05)
-                w_off = st.slider("Weight: Off-target (lower is better)", 0.0, 1.0, 0.3, 0.05)
-                w_via = st.slider("Weight: Viability", 0.0, 1.0, 0.2, 0.05)
-                blend_alpha = st.slider("Blend profiles with your inputs (0 = profiles, 1 = your inputs)",
-                                        0.0, 1.0, 0.35, 0.05)
+            st.subheader("Clinical Parameters")
+            c1, c2 = st.columns(2)
+            with c1:
+                eff = st.slider("Editing Efficiency (%)", 60, 100, 75) / 100.0
+                off = st.slider("Off-target Risk (%)", 0, 20, 9) / 100.0
+            with c2:
+                viability = st.slider("Cell Viability (%)", 50, 100, 90) / 100.0
+                cost = st.select_slider("Cost & Scalability (1=Low Cost, 5=High Cost)", [1, 2, 3, 4, 5], value=3)
 
-        st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
-        run = st.button("🔍 Predict Best Delivery Method", use_container_width=True)
+            # Advanced Controls
+            if show_advanced:
+                st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
+                st.subheader("Advanced Controls")
+                ac1, ac2 = st.columns(2)
+                with ac1:
+                    nuclease = st.selectbox("Nuclease (for record/report only)", ["SpCas9", "SaCas9", "AsCas12a", "LbCas12a"])
+                    show_probs = st.checkbox("Show raw model class probabilities", value=True)
+                    use_heuristic = st.checkbox("Use weighted heuristic instead of model (experimental)", value=False)
+                with ac2:
+                    st.caption("User-weighted scoring (used when heuristic is enabled):")
+                    w_eff = st.slider("Weight: Efficiency", 0.0, 1.0, 0.5, 0.05)
+                    w_off = st.slider("Weight: Off-target (lower is better)", 0.0, 1.0, 0.3, 0.05)
+                    w_via = st.slider("Weight: Viability", 0.0, 1.0, 0.2, 0.05)
+                    blend_alpha = st.slider("Blend profiles with your inputs (0 = profiles, 1 = your inputs)",
+                                            0.0, 1.0, 0.35, 0.05)
 
+            st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
+            submitted = st.form_submit_button("🔍 Predict Best Delivery Method", use_container_width=True)
+
+    # ---------- RIGHT: outputs ----------
     with right:
         st.subheader("Gene Context")
         g1, g2 = st.columns([1, 1.6])
@@ -183,7 +186,7 @@ with tab_sim:
             "Electroporation": {"eff": 0.85, "off": 0.12, "via": 0.75},
         }
 
-        if run:
+        if submitted:
             # ------- Heuristic path -------
             if show_advanced and 'use_heuristic' in locals() and use_heuristic:
                 def score_method(profile, w_eff, w_off, w_via):
@@ -305,7 +308,7 @@ with tab_sim:
                     "Confidence": f"{conf:.1f}%",
                 }
                 if show_advanced:
-                    inputs["Nuclease"] = nuclease
+                    inputs["Nuclease"] = nuclease if "nuclease" in locals() else "SpCas9"
                     if 'use_heuristic' in locals() and use_heuristic:
                         inputs["Decision Mode"] = "Heuristic (blended)"
                         inputs["Weights"] = f"eff={w_eff:.2f}, off={w_off:.2f}, via={w_via:.2f}"
@@ -313,14 +316,13 @@ with tab_sim:
                     else:
                         inputs["Decision Mode"] = "Model"
 
-                pdf_path = "Genovate_Report.pdf"
-                generate_pdf_report(inputs, get_mutation_summary(mutation), radar_path, pdf_path)
-                with open(pdf_path, "rb") as f:
-                    st.session_state["pdf_bytes"] = f.read()
+                # NEW: backend now returns bytes — no need to read a file
+                pdf_bytes = generate_pdf_report(inputs, get_mutation_summary(mutation), radar_path, output_path=None)
+                st.session_state["pdf_bytes"] = pdf_bytes
                 st.session_state["pdf_name"] = "Genovate_Report.pdf"
                 st.success("Report generated. Scroll down to download ⬇️")
 
-    # ---- Persistent download area (outside `if run:` so it doesn't vanish) ----
+    # ---- Persistent download area (outside submit so it never vanishes) ----
     if show_pdf_download and "pdf_bytes" in st.session_state:
         st.markdown("### 📄 Download Summary Report")
         st.download_button(
