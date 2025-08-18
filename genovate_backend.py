@@ -1,5 +1,7 @@
 # genovate_backend.py
 
+from __future__ import annotations
+
 import os
 import unicodedata
 import numpy as np
@@ -32,17 +34,30 @@ def highlight_pam_sites(sequence: str, pam: str = "NGG") -> str:
     Designed for Streamlit's st.markdown(..., unsafe_allow_html=True).
     """
     import re
-    pam_regex = re.compile(r'(?=(.GG))')  # N=any base
+    # PAM "NGG" -> regex for any base followed by GG, with overlap
+    if pam.upper() != "NGG":
+        # simple IUPAC-to-regex for a few common codes (extend as needed)
+        iupac = str.maketrans({
+            "R": "[AG]", "Y": "[CT]", "S": "[GC]", "W": "[AT]",
+            "K": "[GT]", "M": "[AC]", "B": "[CGT]", "D": "[AGT]",
+            "H": "[ACT]", "V": "[ACG]", "N": "[ACGT]",
+        })
+        pat = "".join(ch.translate(iupac) if ch in "RYSWKMBDHVN" else ch for ch in pam.upper())
+        pam_regex = re.compile(f"(?=({pat}))")
+    else:
+        pam_regex = re.compile(r"(?=(.GG))")
+
     highlighted = []
     seq = sequence.upper()
-
-    i = 0
     matches = {m.start(1) for m in pam_regex.finditer(seq)}
+    i = 0
     while i < len(seq):
         if i in matches:
-            pam_seq = seq[i:i+3]
-            highlighted.append(f'<span style="background-color:#FFDD57;font-weight:bold">{pam_seq}</span>')
-            i += 3
+            pam_seq = seq[i:i+len(pam)]
+            highlighted.append(
+                f'<span style="background-color:#FFDD57;font-weight:bold">{pam_seq}</span>'
+            )
+            i += len(pam)
         else:
             highlighted.append(seq[i])
             i += 1
@@ -131,6 +146,7 @@ def predict_confidence(model, le_mut, le_org, le_method, mutation, organ, eff, o
 def _to_latin1(s: str) -> str:
     """
     Convert arbitrary Unicode to Latin-1 for classic FPDF fallback.
+    Also replaces emojis/specials to ASCII tokens to avoid width issues.
     """
     if s is None:
         return ""
@@ -154,10 +170,8 @@ def _to_latin1(s: str) -> str:
 
 
 def _chunk_word_to_fit(pdf: FPDF, word: str, max_w: float):
-    """
-    Break a single long 'word' (no spaces) into chunks that fit within max_w.
-    """
-    chunks = []
+    """Break a single long token (no spaces) into chunks that fit within max_w."""
+    chunks: list[str] = []
     cur = ""
     for ch in word:
         w = pdf.get_string_width(cur + ch)
@@ -176,13 +190,11 @@ def _wrap_text_to_width(pdf: FPDF, text: str, max_w: float):
     Wrap text to a given width using font metrics; splits overlong tokens safely.
     Returns list of lines that each fit within max_w.
     """
-    lines_out = []
-    # Normalize line breaks first
+    lines_out: list[str] = []
     for para in (text or "").splitlines():
         words = para.split(" ")
         line = ""
         for w in words:
-            # Empty (multiple spaces) -> treat as space
             token = w if w != "" else " "
             tentative = (line + " " + token).strip() if line else token
             if pdf.get_string_width(tentative) <= max_w:
@@ -190,13 +202,12 @@ def _wrap_text_to_width(pdf: FPDF, text: str, max_w: float):
             else:
                 if line:
                     lines_out.append(line)
-                # token itself may be too wide; split it
                 if pdf.get_string_width(token) > max_w:
                     for part in _chunk_word_to_fit(pdf, token, max_w):
                         if pdf.get_string_width(part) <= max_w:
                             lines_out.append(part)
                         else:
-                            # Extremely pathological; still push
+                            # Still too large (extreme case): hard-split
                             lines_out.append(part[:1])
                             lines_out.append(part[1:])
                     line = ""
@@ -208,14 +219,20 @@ def _wrap_text_to_width(pdf: FPDF, text: str, max_w: float):
 
 
 # -------------------------------
-# Report / utilities
+# Report builder (returns BYTES)
 # -------------------------------
-def generate_pdf_report(inputs: dict, mutation_summary: str, radar_path: str, output_path: str):
+def generate_pdf_report(
+    inputs: dict,
+    mutation_summary: str,
+    radar_path: str | None,
+    output_path: str | None = None
+) -> bytes:
     """
-    Create a compact summary PDF.
+    Create the summary PDF and return raw bytes.
     - Uses full Unicode if fonts/DejaVuSans.ttf exists
     - Otherwise falls back to Latin-1 with sanitization
-    - NEVER calls multi_cell (avoids 'Not enough horizontal space...' errors)
+    - Avoids multi_cell (prevents 'Not enough horizontal space' errors)
+    - If output_path is provided, writes bytes to that path too.
     """
     font_path = os.path.join("fonts", "DejaVuSans.ttf")
     use_unicode = os.path.exists(font_path)
@@ -234,7 +251,7 @@ def generate_pdf_report(inputs: dict, mutation_summary: str, radar_path: str, ou
             pdf.add_font("DejaVu", "B", font_path, uni=True)
             def set_font(bold=False, size=11):
                 pdf.set_font("DejaVu", "B" if bold else "", size)
-            sanitizer = (lambda s: s)  # no sanitize needed
+            sanitizer = (lambda s: s)
         except Exception:
             use_unicode = False
 
@@ -255,14 +272,14 @@ def generate_pdf_report(inputs: dict, mutation_summary: str, radar_path: str, ou
     set_font(size=11)
 
     def write_wrapped(text: str, line_h: float = 7):
-        # Wrap and write each line safely
         safe = sanitizer(text)
         for ln in _wrap_text_to_width(pdf, safe, content_w):
             pdf.cell(0, line_h, ln, ln=1)
 
-    # Inputs block
     for k, v in (inputs or {}).items():
-        write_wrapped(f"{k}: {v}")
+        # Insert zero-width spaces after long tokens to encourage wrapping
+        safe_v = str(v).replace(" ", "\u200b ")
+        write_wrapped(f"{k}: {safe_v}")
 
     pdf.ln(2)
 
@@ -271,7 +288,6 @@ def generate_pdf_report(inputs: dict, mutation_summary: str, radar_path: str, ou
     pdf.cell(0, 8, sanitizer("Mutation Summary"), ln=1)
     set_font(size=11)
     write_wrapped(mutation_summary, line_h=7)
-
     pdf.ln(3)
 
     # Radar image (if present)
@@ -284,20 +300,36 @@ def generate_pdf_report(inputs: dict, mutation_summary: str, radar_path: str, ou
             set_font(size=11)
             write_wrapped("[Radar chart could not be embedded]")
 
-    # Output
-    pdf.output(output_path)
+    # Output as bytes (+ optional file)
+    out = pdf.output(dest="S")
+    pdf_bytes = out.encode("latin-1") if isinstance(out, str) else out
+    if output_path:
+        with open(output_path, "wb") as f:
+            f.write(pdf_bytes)
+    return pdf_bytes
 
 
+# -------------------------------
+# PAM finder
+# -------------------------------
 def find_pam_sites(dna_sequence: str, pam: str = "NGG"):
-    """Return list of (index, window) where the PAM motif occurs."""
-    pam_sites = []
-    seq = dna_sequence.upper()
-    for i in range(len(seq) - len(pam) + 1):
-        window = seq[i:i+len(pam)]
-        match = all(b == p or p == 'N' for b, p in zip(window, pam))
-        if match:
-            pam_sites.append((i, window))
-    return pam_sites
+    """Return list of (index, window) where the PAM motif occurs (simple IUPAC support)."""
+    # Basic IUPAC expansion used in highlight; reuse simplified logic
+    dna = dna_sequence.upper()
+    hits = []
+    # Expand motif to regex
+    import re
+    iupac_map = {
+        "R": "[AG]", "Y": "[CT]", "S": "[GC]", "W": "[AT]",
+        "K": "[GT]", "M": "[AC]", "B": "[CGT]", "D": "[AGT]",
+        "H": "[ACT]", "V": "[ACG]", "N": "[ACGT]",
+    }
+    pat = "".join(iupac_map.get(ch, ch) for ch in pam.upper())
+    rx = re.compile(pat)
+    for i in range(len(dna) - len(pam) + 1):
+        if rx.fullmatch(dna[i:i+len(pam)]):
+            hits.append((i, dna[i:i+len(pam)]))
+    return hits
 
 
 # -------------------------------
