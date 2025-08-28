@@ -15,11 +15,11 @@ from genovate_backend import (
     find_pam_sites,
     get_gene_image_path,
     get_mutation_summary,
-    generate_pdf_report,     # now returns BYTES
+    generate_pdf_report,  # returns BYTES
     learning_mode,
     fetch_genbank_record,
     highlight_pam_sites,
-    detect_gene_from_sequence,  # BLAST (no esearch pre-check)
+    detect_gene_from_sequence,
 )
 
 # ========= UI helper =========
@@ -103,6 +103,11 @@ def _cached_fetch(accession: str):
         "organism": rec.annotations.get("organism", "Unknown organism"),
         "seq": str(rec.seq),
     }
+
+# Ensure session keys exist (prevents KeyError across reruns)
+for k, v in [("pdf_bytes", None), ("pdf_name", "Genovate_Report.pdf")]:
+    if k not in st.session_state:
+        st.session_state[k] = v
 
 # ========= Tabs =========
 tab_sim, tab_detect, tab_viewer, tab_learn = st.tabs(
@@ -293,6 +298,7 @@ with tab_sim:
             radar_path = "radar_chart.png"
             fig.savefig(radar_path, dpi=150, bbox_inches="tight")
             st.pyplot(fig)
+            plt.close(fig)
 
             # -------- Persist PDF bytes in session_state (SURVIVES RERUNS) --------
             if show_pdf_download:
@@ -316,18 +322,22 @@ with tab_sim:
                     else:
                         inputs["Decision Mode"] = "Model"
 
-                # NEW: backend now returns bytes — no need to read a file
+                # BACKEND RETURNS BYTES — do NOT open a file here
                 pdf_bytes = generate_pdf_report(inputs, get_mutation_summary(mutation), radar_path, output_path=None)
-                st.session_state["pdf_bytes"] = pdf_bytes
-                st.session_state["pdf_name"] = "Genovate_Report.pdf"
-                st.success("Report generated. Scroll down to download ⬇️")
+                # Safety: only store bytes; Streamlit Cloud rejects str/None
+                if isinstance(pdf_bytes, (bytes, bytearray)):
+                    st.session_state["pdf_bytes"] = bytes(pdf_bytes)
+                    st.session_state["pdf_name"] = "Genovate_Report.pdf"
+                    st.success("Report generated. Scroll down to download ⬇️")
+                else:
+                    st.error("PDF generation returned non-bytes data. Please retry.")
 
     # ---- Persistent download area (outside submit so it never vanishes) ----
-    if show_pdf_download and "pdf_bytes" in st.session_state:
+    if show_pdf_download and isinstance(st.session_state.get("pdf_bytes"), (bytes, bytearray)):
         st.markdown("### 📄 Download Summary Report")
         st.download_button(
             "📥 Download PDF",
-            data=st.session_state["pdf_bytes"],
+            data=bytes(st.session_state["pdf_bytes"]),   # ensure bytes
             file_name=st.session_state.get("pdf_name", "Genovate_Report.pdf"),
             mime="application/pdf",
             use_container_width=True,
