@@ -1,72 +1,80 @@
 # genovate_backend.py
-
-from __future__ import annotations
+# Compatible with Python 3.9 (no PEP 604 unions). No multi_cell calls anywhere.
 
 import os
+import re
 import unicodedata
+from typing import Optional, List, Dict
+
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
-from fpdf import FPDF
+
+from fpdf import FPDF  # fpdf2
 
 # --- Biopython (NCBI + BLAST) ---
 from Bio import Entrez, SeqIO
 from Bio.Blast import NCBIWWW, NCBIXML
 
 # REQUIRED by NCBI: set your real email
-Entrez.email = "raksheetgummakonda28@gmail.com"   # <-- keep your real email here
+Entrez.email = "raksheetgummakonda28@gmail.com"   # keep your real email here
 
 
-# -------------------------------
+# ===============================
 # NCBI helpers
-# -------------------------------
+# ===============================
 def fetch_genbank_record(accession_id: str):
     """Fetch a GenBank record and return a Biopython SeqRecord."""
     with Entrez.efetch(db="nucleotide", id=accession_id, rettype="gb", retmode="text") as handle:
         return SeqIO.read(handle, "genbank")
 
 
+# ===============================
+# PAM highlighting (IUPAC aware)
+# ===============================
+_IUPAC_MAP = {
+    "R": "[AG]", "Y": "[CT]", "S": "[GC]", "W": "[AT]",
+    "K": "[GT]", "M": "[AC]", "B": "[CGT]", "D": "[AGT]",
+    "H": "[ACT]", "V": "[ACG]", "N": "[ACGT]",
+}
+
+def _iupac_to_regex(motif: str) -> str:
+    return "".join(_IUPAC_MAP.get(ch, ch) for ch in motif.upper())
+
 def highlight_pam_sites(sequence: str, pam: str = "NGG") -> str:
     """
-    Return an HTML string with PAM (NGG) motifs highlighted.
+    Return an HTML string with PAM motifs highlighted.
     Designed for Streamlit's st.markdown(..., unsafe_allow_html=True).
     """
-    import re
-    # PAM "NGG" -> regex for any base followed by GG, with overlap
-    if pam.upper() != "NGG":
-        # simple IUPAC-to-regex for a few common codes (extend as needed)
-        iupac = str.maketrans({
-            "R": "[AG]", "Y": "[CT]", "S": "[GC]", "W": "[AT]",
-            "K": "[GT]", "M": "[AC]", "B": "[CGT]", "D": "[AGT]",
-            "H": "[ACT]", "V": "[ACG]", "N": "[ACGT]",
-        })
-        pat = "".join(ch.translate(iupac) if ch in "RYSWKMBDHVN" else ch for ch in pam.upper())
-        pam_regex = re.compile(f"(?=({pat}))")
+    seq = (sequence or "").upper()
+    motif = pam.upper()
+    # Overlapping lookahead to find all starts
+    if motif == "NGG":
+        rx = re.compile(r"(?=(.GG))")
+        width = 3
     else:
-        pam_regex = re.compile(r"(?=(.GG))")
+        pat = _iupac_to_regex(motif)
+        rx = re.compile(fr"(?=({pat}))")
+        width = len(motif)
 
-    highlighted = []
-    seq = sequence.upper()
-    matches = {m.start(1) for m in pam_regex.finditer(seq)}
+    starts = {m.start(1) for m in rx.finditer(seq)}
+    out: List[str] = []
     i = 0
     while i < len(seq):
-        if i in matches:
-            pam_seq = seq[i:i+len(pam)]
-            highlighted.append(
-                f'<span style="background-color:#FFDD57;font-weight:bold">{pam_seq}</span>'
-            )
-            i += len(pam)
+        if i in starts:
+            out.append(f'<span style="background-color:#FFDD57;font-weight:bold">{seq[i:i+width]}</span>')
+            i += width
         else:
-            highlighted.append(seq[i])
+            out.append(seq[i])
             i += 1
-    return "".join(highlighted)
+    return "".join(out)
 
 
-# -------------------------------
-# ML data + model
-# -------------------------------
+# ===============================
+# ML mock data + model
+# ===============================
 def load_data() -> pd.DataFrame:
     """Simulate training data (replace with real data when ready)."""
     np.random.seed(42)
@@ -92,7 +100,7 @@ def load_data() -> pd.DataFrame:
                     np.random.randint(1, 3, num_samples),
                     np.random.randint(3, 5, num_samples))
 
-    data = pd.DataFrame({
+    return pd.DataFrame({
         "Mutation": mutations,
         "TargetOrgan": organs,
         "DeliveryMethod": methods,
@@ -101,7 +109,6 @@ def load_data() -> pd.DataFrame:
         "CellViability": np.clip(cell_viability, 0, 1),
         "Cost": cost
     })
-    return data
 
 
 def train_model(data: pd.DataFrame):
@@ -137,12 +144,12 @@ def predict_confidence(model, le_mut, le_org, le_method, mutation, organ, eff, o
                           eff, off, viability, cost]])
     proba = model.predict_proba(features)[0]
     method_index = le_method.transform([predicted_method])[0]
-    return proba[method_index] * 100.0
+    return float(proba[method_index] * 100.0)
 
 
-# -------------------------------
-# PDF helpers (robust wrapping)
-# -------------------------------
+# ===============================
+# PDF helpers — robust wrapping (NO multi_cell) and returns BYTES
+# ===============================
 def _to_latin1(s: str) -> str:
     """
     Convert arbitrary Unicode to Latin-1 for classic FPDF fallback.
@@ -154,10 +161,10 @@ def _to_latin1(s: str) -> str:
         s = str(s)
 
     replacements = {
-        "\u2018": "'", "\u2019": "'",  # single quotes
-        "\u201C": '"', "\u201D": '"',  # double quotes
-        "\u2013": "-",  "\u2014": "-", # en/em dashes
-        "\u2022": "-",  "\u00A0": " ", # bullet, nbsp
+        "\u2018": "'", "\u2019": "'",
+        "\u201C": '"', "\u201D": '"',
+        "\u2013": "-",  "\u2014": "-",
+        "\u2022": "-",  "\u00A0": " ",
         "✅": "[OK]", "☑️": "[OK]", "⚠️": "[!]", "❗": "!",
         "🔴": "*", "🧬": "DNA", "📄": "Report",
     }
@@ -169,9 +176,9 @@ def _to_latin1(s: str) -> str:
     return s.encode("latin-1", "replace").decode("latin-1")
 
 
-def _chunk_word_to_fit(pdf: FPDF, word: str, max_w: float):
+def _chunk_word_to_fit(pdf: FPDF, word: str, max_w: float) -> List[str]:
     """Break a single long token (no spaces) into chunks that fit within max_w."""
-    chunks: list[str] = []
+    chunks: List[str] = []
     cur = ""
     for ch in word:
         w = pdf.get_string_width(cur + ch)
@@ -185,12 +192,12 @@ def _chunk_word_to_fit(pdf: FPDF, word: str, max_w: float):
     return chunks
 
 
-def _wrap_text_to_width(pdf: FPDF, text: str, max_w: float):
+def _wrap_text_to_width(pdf: FPDF, text: str, max_w: float) -> List[str]:
     """
     Wrap text to a given width using font metrics; splits overlong tokens safely.
     Returns list of lines that each fit within max_w.
     """
-    lines_out: list[str] = []
+    lines_out: List[str] = []
     for para in (text or "").splitlines():
         words = para.split(" ")
         line = ""
@@ -207,9 +214,8 @@ def _wrap_text_to_width(pdf: FPDF, text: str, max_w: float):
                         if pdf.get_string_width(part) <= max_w:
                             lines_out.append(part)
                         else:
-                            # Still too large (extreme case): hard-split
-                            lines_out.append(part[:1])
-                            lines_out.append(part[1:])
+                            # extreme fallback split
+                            lines_out.append(part[:1]); lines_out.append(part[1:])
                     line = ""
                 else:
                     line = token
@@ -218,20 +224,16 @@ def _wrap_text_to_width(pdf: FPDF, text: str, max_w: float):
     return lines_out
 
 
-# -------------------------------
-# Report builder (returns BYTES)
-# -------------------------------
 def generate_pdf_report(
-    inputs: dict,
+    inputs: Dict[str, str],
     mutation_summary: str,
-    radar_path: str | None,
-    output_path: str | None = None
+    radar_path: Optional[str],
+    output_path: Optional[str] = None
 ) -> bytes:
     """
     Create the summary PDF and return raw bytes.
-    - Uses full Unicode if fonts/DejaVuSans.ttf exists
-    - Otherwise falls back to Latin-1 with sanitization
-    - Avoids multi_cell (prevents 'Not enough horizontal space' errors)
+    - Uses full Unicode if fonts/DejaVuSans.ttf exists; else Latin-1 with sanitization
+    - NO multi_cell calls (prevents 'Not enough horizontal space' errors)
     - If output_path is provided, writes bytes to that path too.
     """
     font_path = os.path.join("fonts", "DejaVuSans.ttf")
@@ -249,92 +251,82 @@ def generate_pdf_report(
         try:
             pdf.add_font("DejaVu", "", font_path, uni=True)
             pdf.add_font("DejaVu", "B", font_path, uni=True)
-            def set_font(bold=False, size=11):
+            def set_font(bold: bool = False, size: int = 11) -> None:
                 pdf.set_font("DejaVu", "B" if bold else "", size)
             sanitizer = (lambda s: s)
         except Exception:
             use_unicode = False
 
     if not use_unicode:
-        def set_font(bold=False, size=11):
+        def set_font(bold: bool = False, size: int = 11) -> None:
             pdf.set_font("Arial", "B" if bold else "", size)
         sanitizer = _to_latin1
 
-    # Title
-    set_font(bold=True, size=14)
-    title = sanitizer("Genovate: CRISPR Delivery Prediction Summary")
-    pdf.cell(0, 10, title, ln=1, align="C")
-    pdf.ln(2)
-
-    # Section: Case Inputs
-    set_font(bold=True, size=12)
-    pdf.cell(0, 8, sanitizer("Case Inputs"), ln=1)
-    set_font(size=11)
-
-    def write_wrapped(text: str, line_h: float = 7):
+    def write_wrapped(text: str, line_h: float = 7) -> None:
         safe = sanitizer(text)
         for ln in _wrap_text_to_width(pdf, safe, content_w):
             pdf.cell(0, line_h, ln, ln=1)
 
-    for k, v in (inputs or {}).items():
-        # Insert zero-width spaces after long tokens to encourage wrapping
-        safe_v = str(v).replace(" ", "\u200b ")
-        write_wrapped(f"{k}: {safe_v}")
-
+    # Title
+    set_font(bold=True, size=14)
+    pdf.cell(0, 10, sanitizer("Genovate: CRISPR Delivery Prediction Summary"), ln=1, align="C")
     pdf.ln(2)
 
-    # Section: Mutation summary
+    # Case Inputs
+    set_font(bold=True, size=12)
+    pdf.cell(0, 8, sanitizer("Case Inputs"), ln=1)
+    set_font(size=11)
+    for k, v in (inputs or {}).items():
+        # Encourage wrapping by inserting zero-width spaces after spaces
+        safe_v = str(v).replace(" ", "\u200b ")
+        write_wrapped(f"{k}: {safe_v}")
+    pdf.ln(2)
+
+    # Mutation summary
     set_font(bold=True, size=12)
     pdf.cell(0, 8, sanitizer("Mutation Summary"), ln=1)
     set_font(size=11)
     write_wrapped(mutation_summary, line_h=7)
     pdf.ln(3)
 
-    # Radar image (if present)
+    # Radar image (optional)
     if radar_path and os.path.exists(radar_path):
         try:
-            img_w = min(160, content_w)  # keep inside margins
+            img_w = min(160, content_w)
             x = pdf.l_margin + (content_w - img_w) / 2.0
             pdf.image(radar_path, x=x, w=img_w)
         except Exception:
             set_font(size=11)
             write_wrapped("[Radar chart could not be embedded]")
 
-    # Output as bytes (+ optional file)
-    out = pdf.output(dest="S")
-    pdf_bytes = out.encode("latin-1") if isinstance(out, str) else out
+    # Output to bytes (fpdf2 returns str); encode to bytes
+    raw = pdf.output(dest="S")
+    pdf_bytes: bytes = raw.encode("latin-1") if isinstance(raw, str) else raw
     if output_path:
         with open(output_path, "wb") as f:
             f.write(pdf_bytes)
     return pdf_bytes
 
 
-# -------------------------------
-# PAM finder
-# -------------------------------
+# ===============================
+# PAM finder (IUPAC aware)
+# ===============================
 def find_pam_sites(dna_sequence: str, pam: str = "NGG"):
     """Return list of (index, window) where the PAM motif occurs (simple IUPAC support)."""
-    # Basic IUPAC expansion used in highlight; reuse simplified logic
-    dna = dna_sequence.upper()
-    hits = []
-    # Expand motif to regex
-    import re
-    iupac_map = {
-        "R": "[AG]", "Y": "[CT]", "S": "[GC]", "W": "[AT]",
-        "K": "[GT]", "M": "[AC]", "B": "[CGT]", "D": "[AGT]",
-        "H": "[ACT]", "V": "[ACG]", "N": "[ACGT]",
-    }
-    pat = "".join(iupac_map.get(ch, ch) for ch in pam.upper())
+    dna = (dna_sequence or "").upper()
+    pat = _iupac_to_regex(pam.upper())
     rx = re.compile(pat)
-    for i in range(len(dna) - len(pam) + 1):
-        if rx.fullmatch(dna[i:i+len(pam)]):
-            hits.append((i, dna[i:i+len(pam)]))
+    hits = []
+    L = len(pam)
+    for i in range(len(dna) - L + 1):
+        if rx.fullmatch(dna[i:i+L]):
+            hits.append((i, dna[i:i+L]))
     return hits
 
 
-# -------------------------------
+# ===============================
 # Content + metadata
-# -------------------------------
+# ===============================
 mutation_summaries = {
     "PKD1": "PKD1 mutations lead to polycystic kidney disease, disrupting cell polarity and tubule formation through polycystin-1 dysfunction.",
     "PKD2": "PKD2 mutations affect polycystin-2, impairing calcium signaling and leading to progressive kidney cyst formation.",
@@ -381,23 +373,21 @@ LNPs are fat-based vesicles that encapsulate CRISPR cargo (mRNA/protein/sgRNA) f
 }
 
 
-# -------------------------------
-# NEW: BLAST-based gene detection (no esearch pre-check)
-# -------------------------------
+# ===============================
+# BLAST-based gene detection (no esearch pre-check)
+# ===============================
 def detect_gene_from_sequence(sequence: str):
     """
     Run BLASTN on the given DNA sequence and return up to 3 top matches.
     Assumes Biopython and outbound internet are available.
     """
     try:
-        # Cleanup & basic validation
-        seq = "".join(sequence.upper().split())
+        seq = "".join((sequence or "").upper().split())
         if any(ch not in "ACGTN" for ch in seq):
             return ["❌ Input must contain only A/C/G/T (and optional N)."]
         if len(seq) < 120:
             return ["❌ Sequence too short for reliable BLAST. Please paste ≥120 bp."]
 
-        # BLAST tuned for speed & relevance
         result_handle = NCBIWWW.qblast(
             program="blastn",
             database="nt",
