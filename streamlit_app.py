@@ -1,9 +1,7 @@
-# streamlit_app.py  — acts as the Home / Landing page
 import streamlit as st
 
 st.set_page_config(page_title="Genovate • Home", page_icon="🧬", layout="wide")
 
-# --- styles ---
 st.markdown("""
 <style>
 .block-container {padding-top: 1.2rem; padding-bottom: 1.5rem;}
@@ -35,7 +33,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- hero ---
 st.markdown("""
 <div class="hero">
   <div style="text-align:center;">
@@ -48,7 +45,6 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# --- what you can do ---
 st.write("")
 st.markdown('<h2 class="h2">What you can do</h2>', unsafe_allow_html=True)
 c1, c2, c3 = st.columns(3)
@@ -65,7 +61,6 @@ with c3:
     <p class="muted">Export a clean PDF summary with radar charts and context notes—perfect for lab
     meetings, proposals, and documentation.</p></div>""", unsafe_allow_html=True)
 
-# --- how it works ---
 st.write("")
 st.markdown('<h2 class="h2">How it works</h2>', unsafe_allow_html=True)
 s1, s2, s3, s4 = st.columns(4)
@@ -79,7 +74,6 @@ for step, title, desc, col in [
         st.markdown(f"""<div class="card"><div class="pill">{step}</div>
         <h4>{title}</h4><p class="muted">{desc}</p></div>""", unsafe_allow_html=True)
 
-# --- why build ---
 st.write("")
 st.markdown('<h2 class="h2">Why I built Genovate</h2>', unsafe_allow_html=True)
 st.markdown("""<div class="card">
@@ -95,32 +89,18 @@ Next up: richer organ- and mutation-specific priors, more delivery modes, and da
 parameter estimation—moving Genovate from “research companion” toward a
 robust, evidence-aware platform.</p></div>""", unsafe_allow_html=True)
 
-# --- navigation buttons (robust across Cloud/local) ---
 st.write("")
 st.markdown('<h2 class="h2">Jump in</h2>', unsafe_allow_html=True)
 cta1, cta2, cta3 = st.columns([1.2,1,1])
-
-# Prefer st.page_link when Streamlit registers the page; else fall back to switch_page
-def nav(label, target_py, key):
-    try:
-        st.page_link(f"pages/{target_py}", label=label)
-    except Exception:
-        if st.button(label, key=key, use_container_width=True):
-            # switch_page expects the script path inside the app
-            st.switch_page(f"pages/{target_py}")
-
-with cta1:
-    nav("🚀 Open Simulation", "2_Simulation.py", "nav_sim")
-with cta2:
-    nav("🧬 Gene Detection", "3_Gene_Detection.py", "nav_detect")
-with cta3:
-    nav("🧫 Sequence Viewer", "4_Sequence_Viewer.py", "nav_seq")
+with cta1: st.page_link("pages/2_Simulation.py", label="🚀 Open Simulation", icon="🧪")
+with cta2: st.page_link("pages/3_Gene_Detection.py", label="🧬 Gene Detection", icon="🧬")
+with cta3: st.page_link("pages/4_Sequence_Viewer.py", label="🧫 Sequence Viewer", icon="🧫")
 
 st.write("")
 st.markdown("""
 <div style="text-align:center; opacity:0.85; margin-top:0.6rem;">
-  <span class="muted">Questions or ideas?</span>
+  <span class="muted">More learning?</span>
   &nbsp;
-  <a class="link-btn" href="mailto:support@genovate.app">Email support@genovate.app</a>
+  <a class="link-btn" href="?page=5_Learning_Mode">Open Learning Mode</a>
 </div>
 """, unsafe_allow_html=True)
