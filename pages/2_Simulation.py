@@ -32,7 +32,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ========= UI helper =========
+# ========= helpers =========
 def render_confidence_card(conf: float):
     if conf >= 85:
         bg, label, border = "#155d27", "High ✅", "#1f7a3a"
@@ -51,58 +51,82 @@ def render_confidence_card(conf: float):
         """, unsafe_allow_html=True
     )
 
-st.title("🎯 Simulation")
-
-# Train once on mock data
+# ---------- train (once) ----------
 _data = load_data()
 model, le_mut, le_org, le_method = train_model(_data)
 
+st.title("🎯 Simulation")
 left, right = st.columns([1.05, 1.0])
 
-# ---------- LEFT: inputs (form) ----------
+# ---------- LEFT: inputs (NO FORM so widgets update instantly) ----------
 with left:
-    with st.form("sim_form"):
-        st.subheader("Case Setup")
-        organ_gene_map = {
-            "Kidney": ["PKD1", "PKD2", "PKHD1"],
-            "Liver": ["ATP7B", "FAH", "TTR"],
-            "Heart": ["MYBPC3", "TNNT2", "MYH7"],
-            "Lung": ["CFTR", "AATD"],
-            "Brain": ["HTT", "MECP2", "SCN1A"],
-            "Eye": ["RPE65", "RPGR"],
-            "Pancreas": ["INS", "PDX1"],
-        }
-        organ = st.selectbox("Target Organ", list(organ_gene_map.keys()))
-        mutation = st.selectbox("Gene Mutation", organ_gene_map[organ])
-        therapy_type = st.radio("Therapy Type", ["Ex vivo", "In vivo"], horizontal=True)
+    st.subheader("Case Setup")
 
-        st.write("")
-        st.subheader("Clinical Parameters")
-        c1, c2 = st.columns(2)
-        with c1:
-            eff = st.slider("Editing Efficiency (%)", 60, 100, 75) / 100.0
-            off = st.slider("Off-target Risk (%)", 0, 20, 9) / 100.0
-        with c2:
-            viability = st.slider("Cell Viability (%)", 50, 100, 90) / 100.0
-            cost = st.select_slider("Cost & Scalability (1=Low Cost, 5=High Cost)", [1, 2, 3, 4, 5], value=3)
+    organ_gene_map = {
+        "Kidney": ["PKD1", "PKD2", "PKHD1"],
+        "Liver": ["ATP7B", "FAH", "TTR"],
+        "Heart": ["MYBPC3", "TNNT2", "MYH7"],
+        "Lung": ["CFTR", "AATD"],
+        "Brain": ["HTT", "MECP2", "SCN1A"],
+        "Eye": ["RPE65", "RPGR"],
+        "Pancreas": ["INS", "PDX1"],
+    }
 
-        # Advanced Controls
-        show_advanced = st.checkbox("Show advanced controls", value=False)
-        if show_advanced:
-            st.subheader("Advanced Controls")
-            ac1, ac2 = st.columns(2)
-            with ac1:
-                nuclease = st.selectbox("Nuclease (for report only)", ["SpCas9", "SaCas9", "AsCas12a", "LbCas12a"])
-                show_probs = st.checkbox("Show raw model class probabilities", value=True)
-                use_heuristic = st.checkbox("Use weighted heuristic instead of model", value=False)
-            with ac2:
-                st.caption("Weights used when heuristic is enabled:")
-                w_eff = st.slider("Weight: Efficiency", 0.0, 1.0, 0.5, 0.05)
-                w_off = st.slider("Weight: Off-target (lower is better)", 0.0, 1.0, 0.3, 0.05)
-                w_via = st.slider("Weight: Viability", 0.0, 1.0, 0.2, 0.05)
-                blend_alpha = st.slider("Blend (0=profiles, 1=your inputs)", 0.0, 1.0, 0.35, 0.05)
+    # keep organ/mutation in session so we can reset mutation when organ changes
+    def _reset_mutation():
+        st.session_state.mutation = organ_gene_map[st.session_state.organ][0]
 
-        submitted = st.form_submit_button("🔍 Predict Best Delivery Method", use_container_width=True)
+    organ = st.selectbox(
+        "Target Organ",
+        list(organ_gene_map.keys()),
+        key="organ",
+        on_change=_reset_mutation
+    )
+    mutation = st.selectbox(
+        "Gene Mutation",
+        organ_gene_map[organ],
+        key="mutation",
+    )
+    therapy_type = st.radio("Therapy Type", ["Ex vivo", "In vivo"], horizontal=True, key="therapy_type")
+
+    st.write("")
+    st.subheader("Clinical Parameters")
+    c1, c2 = st.columns(2)
+    with c1:
+        eff = st.slider("Editing Efficiency (%)", 60, 100, 75, key="eff") / 100.0
+        off = st.slider("Off-target Risk (%)", 0, 20, 9, key="off") / 100.0
+    with c2:
+        viability = st.slider("Cell Viability (%)", 50, 100, 90, key="viability") / 100.0
+        cost = st.select_slider(
+            "Cost & Scalability (1=Low Cost, 5=High Cost)",
+            options=[1, 2, 3, 4, 5],
+            value=3,
+            key="cost"
+        )
+
+    # Advanced toggle OUTSIDE the form so it expands instantly
+    show_advanced = st.checkbox("Show advanced controls", value=False, key="show_advanced")
+
+    if show_advanced:
+        st.subheader("Advanced Controls")
+        ac1, ac2 = st.columns(2)
+        with ac1:
+            nuclease = st.selectbox(
+                "Nuclease (for report only)",
+                ["SpCas9", "SaCas9", "AsCas12a", "LbCas12a"],
+                key="nuclease"
+            )
+            show_probs = st.checkbox("Show raw model class probabilities", value=True, key="show_probs")
+            use_heuristic = st.checkbox("Use weighted heuristic instead of model", value=False, key="use_heuristic")
+        with ac2:
+            st.caption("Weights used when heuristic is enabled:")
+            w_eff = st.slider("Weight: Efficiency", 0.0, 1.0, 0.5, 0.05, key="w_eff")
+            w_off = st.slider("Weight: Off-target (lower is better)", 0.0, 1.0, 0.3, 0.05, key="w_off")
+            w_via = st.slider("Weight: Viability", 0.0, 1.0, 0.2, 0.05, key="w_via")
+            blend_alpha = st.slider("Blend (0=profiles, 1=your inputs)", 0.0, 1.0, 0.35, 0.05, key="blend_alpha")
+
+    st.write("")
+    run = st.button("🔍 Predict Best Delivery Method", use_container_width=True, key="run_btn")
 
 # ---------- RIGHT: outputs ----------
 with right:
@@ -118,15 +142,14 @@ with right:
         st.markdown(f"**{mutation} – Summary**")
         st.info(get_mutation_summary(mutation))
 
-    # Base method profiles
     method_profiles = {
         "LNP": {"eff": 0.72, "off": 0.07, "via": 0.92},
         "Electroporation": {"eff": 0.85, "off": 0.12, "via": 0.75},
     }
 
-    if submitted:
-        # Heuristic path
-        if ('show_advanced' in locals()) and show_advanced and ('use_heuristic' in locals()) and use_heuristic:
+    if run:
+        # ----- Heuristic path -----
+        if st.session_state.get("show_advanced") and st.session_state.get("use_heuristic"):
             def score_method(profile, w_eff, w_off, w_via):
                 return w_eff * profile["eff"] + w_off * (1.0 - profile["off"]) + w_via * profile["via"]
 
@@ -137,13 +160,12 @@ with right:
                     "via": (1 - alpha) * profile["via"] + alpha * via_in,
                 }
 
-            p_lnp  = blend_profile(method_profiles["LNP"], eff, off, viability, blend_alpha)
-            p_elec = blend_profile(method_profiles["Electroporation"], eff, off, viability, blend_alpha)
-            score_lnp  = score_method(p_lnp,  w_eff, w_off, w_via)
-            score_elec = score_method(p_elec, w_eff, w_off, w_via)
+            p_lnp  = blend_profile(method_profiles["LNP"], eff, off, viability, st.session_state["blend_alpha"])
+            p_elec = blend_profile(method_profiles["Electroporation"], eff, off, viability, st.session_state["blend_alpha"])
+            score_lnp  = score_method(p_lnp,  st.session_state["w_eff"], st.session_state["w_off"], st.session_state["w_via"])
+            score_elec = score_method(p_elec, st.session_state["w_eff"], st.session_state["w_off"], st.session_state["w_via"])
             rec = "LNP" if score_lnp >= score_elec else "Electroporation"
 
-            # softmax for confidence
             scores = np.array([score_lnp, score_elec])
             scores = scores - scores.max()
             probs = np.exp(scores) / np.exp(scores).sum()
@@ -151,7 +173,7 @@ with right:
 
             st.markdown('<span class="badge badge-heur">Heuristic mode (blended)</span>', unsafe_allow_html=True)
 
-            if ('show_probs' in locals()) and show_probs:
+            if st.session_state.get("show_probs"):
                 st.caption("Blended profiles and scores:")
                 st.dataframe(pd.DataFrame([
                     {"Method": "LNP", "eff": round(p_lnp["eff"], 3), "off": round(p_lnp["off"], 3),
@@ -164,12 +186,12 @@ with right:
             radar_vals_2 = [p_elec["eff"], p_elec["off"], p_elec["via"]]
             radar_labels = ["LNP (blended)", "Electroporation (blended)"]
 
-        # Model path
+        # ----- Model path -----
         else:
             rec = predict_method(model, le_mut, le_org, le_method, mutation, organ, eff, off, viability, cost)
             conf = predict_confidence(model, le_mut, le_org, le_method, mutation, organ, eff, off, viability, cost, rec)
 
-            if ('show_advanced' in locals()) and show_advanced and ('show_probs' in locals()) and show_probs:
+            if st.session_state.get("show_advanced") and st.session_state.get("show_probs"):
                 feat = np.array([[le_mut.transform([mutation])[0],
                                   le_org.transform([organ])[0],
                                   eff, off, viability, cost]])
@@ -190,14 +212,13 @@ with right:
             radar_vals_1 = method_scores
             radar_vals_2 = baseline
 
-        # KPI
+        # ----- KPI + progress -----
         k1, k2 = st.columns(2)
         with k1: st.success(f"**Recommended Method:** {rec}")
         with k2: render_confidence_card(conf)
-
         st.progress(min(max(conf / 100.0, 0.0), 1.0))
 
-        # Radar
+        # ----- Radar chart -----
         st.markdown("### Comparison (Radar Chart)")
         categories = ["Efficiency", "Off-Target Risk", "Viability"]
         N = len(categories)
@@ -221,11 +242,11 @@ with right:
         fig.savefig(radar_path, dpi=150, bbox_inches="tight")
         st.pyplot(fig)
 
-        # Persist PDF in session_state
+        # ----- Persist PDF in session_state -----
         inputs = {
             "Target Organ": organ,
             "Gene Mutation": mutation,
-            "Therapy Type": therapy_type,
+            "Therapy Type": st.session_state["therapy_type"],
             "Efficiency": f"{eff*100:.1f}%",
             "Off-Target Risk": f"{off*100:.1f}%",
             "Viability": f"{viability*100:.1f}%",
@@ -233,12 +254,12 @@ with right:
             "Recommended Method": rec,
             "Confidence": f"{conf:.1f}%",
         }
-        if ('show_advanced' in locals()) and show_advanced:
-            inputs["Nuclease"] = nuclease if 'nuclease' in locals() else "SpCas9"
-            if ('use_heuristic' in locals()) and use_heuristic:
+        if st.session_state.get("show_advanced"):
+            inputs["Nuclease"] = st.session_state.get("nuclease", "SpCas9")
+            if st.session_state.get("use_heuristic"):
                 inputs["Decision Mode"] = "Heuristic (blended)"
-                inputs["Weights"] = f"eff={w_eff:.2f}, off={w_off:.2f}, via={w_via:.2f}"
-                inputs["Blend α"] = f"{blend_alpha:.2f}"
+                inputs["Weights"] = f"eff={st.session_state['w_eff']:.2f}, off={st.session_state['w_off']:.2f}, via={st.session_state['w_via']:.2f}"
+                inputs["Blend α"] = f"{st.session_state['blend_alpha']:.2f}"
             else:
                 inputs["Decision Mode"] = "Model"
 
@@ -247,7 +268,7 @@ with right:
         st.session_state["pdf_name"] = "Genovate_Report.pdf"
         st.success("Report generated. Use the download area below ⬇️")
 
-# Persistent download area (outside form submit so it never vanishes)
+# ---------- Persistent download area ----------
 st.markdown("---")
 st.subheader("📄 Download Summary Report")
 if "pdf_bytes" in st.session_state:
