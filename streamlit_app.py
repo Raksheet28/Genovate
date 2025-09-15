@@ -64,17 +64,6 @@ a:hover { text-decoration: underline; }
 </style>
 """, unsafe_allow_html=True)
 
-# ---------- Sidebar Nav (no self-link on Home) ----------
-st.sidebar.markdown('<div class="sidebar-title">Genovate</div>', unsafe_allow_html=True)
-st.sidebar.markdown('<div class="sidebar-sub">Navigate</div>', unsafe_allow_html=True)
-st.sidebar.markdown("🏠 **Home**")  # label only; main script can't be linked
-st.sidebar.page_link("pages/2_Simulation.py", label="🎯 Simulation")
-st.sidebar.page_link("pages/3_Gene_Detection.py", label="🧪 Gene Detection")
-st.sidebar.page_link("pages/4_Sequence_Viewer.py", label="🧬 Sequence Viewer")
-st.sidebar.page_link("pages/5_Learning_Mode.py", label="📘 Learning Mode")
-st.sidebar.markdown('<div class="sidebar-sep"></div>', unsafe_allow_html=True)
-st.sidebar.caption("Research prototype — not for clinical use.")
-
 # ---------- Hero Section ----------
 st.markdown("### ")
 col_hero_left, col_hero_right = st.columns([1.25, 1])
