@@ -5,13 +5,6 @@ from genovate_backend import detect_gene_from_sequence
 
 st.set_page_config(page_title="Genovate • Gene Detection", page_icon="🧪", layout="wide")
 
-# Sidebar nav
-st.sidebar.page_link("pages/1_Home.py", label="🏠 Home")
-st.sidebar.page_link("pages/2_Simulation.py", label="🎯 Simulation")
-st.sidebar.page_link("pages/3_Gene_Detection.py", label="🧪 Gene Detection")
-st.sidebar.page_link("pages/4_Sequence_Viewer.py", label="🧬 Sequence Viewer")
-st.sidebar.page_link("pages/5_Learning_Mode.py", label="📘 Learning Mode")
-
 st.title("🧪 Gene Detection (BLAST)")
 st.caption("Paste a DNA fragment (≥120 bp). Backend is biased to Homo sapiens for speed.")
 
