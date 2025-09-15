@@ -11,7 +11,7 @@ from genovate_backend import (
     load_data, train_model,
     predict_method, predict_confidence,
     get_gene_image_path, get_mutation_summary,
-    generate_pdf_report,  # returns bytes
+    generate_pdf_report,  # returns bytes (but we'll coerce defensively)
     find_pam_sites,
 )
 
@@ -31,6 +31,26 @@ st.markdown("""
 .badge-heur {background:#0b7285;color:#fff;border:1px solid #0c8599;}
 </style>
 """, unsafe_allow_html=True)
+
+# ---------- small utility: always hand Streamlit real bytes ----------
+def ensure_bytes(buf) -> bytes:
+    """Coerce FPDF/Session outputs to true bytes for st.download_button."""
+    if buf is None:
+        return b""
+    if isinstance(buf, bytes):
+        return buf
+    if isinstance(buf, bytearray):
+        return bytes(buf)
+    if isinstance(buf, memoryview):
+        return buf.tobytes()
+    # Sometimes libraries hand back str; FPDF uses Latin-1-safe strings.
+    if isinstance(buf, str):
+        try:
+            return buf.encode("latin-1", "replace")
+        except Exception:
+            return buf.encode("utf-8", "replace")
+    # Last resort: stringify
+    return str(buf).encode("utf-8", "replace")
 
 # ========= helpers =========
 def render_confidence_card(conf: float):
@@ -58,7 +78,7 @@ model, le_mut, le_org, le_method = train_model(_data)
 st.title("🎯 Simulation")
 left, right = st.columns([1.05, 1.0])
 
-# ---------- LEFT: inputs (NO FORM so widgets update instantly) ----------
+# ---------- LEFT: inputs ----------
 with left:
     st.subheader("Case Setup")
 
@@ -72,21 +92,11 @@ with left:
         "Pancreas": ["INS", "PDX1"],
     }
 
-    # keep organ/mutation in session so we can reset mutation when organ changes
     def _reset_mutation():
         st.session_state.mutation = organ_gene_map[st.session_state.organ][0]
 
-    organ = st.selectbox(
-        "Target Organ",
-        list(organ_gene_map.keys()),
-        key="organ",
-        on_change=_reset_mutation
-    )
-    mutation = st.selectbox(
-        "Gene Mutation",
-        organ_gene_map[organ],
-        key="mutation",
-    )
+    organ = st.selectbox("Target Organ", list(organ_gene_map.keys()), key="organ", on_change=_reset_mutation)
+    mutation = st.selectbox("Gene Mutation", organ_gene_map[organ], key="mutation")
     therapy_type = st.radio("Therapy Type", ["Ex vivo", "In vivo"], horizontal=True, key="therapy_type")
 
     st.write("")
@@ -97,25 +107,15 @@ with left:
         off = st.slider("Off-target Risk (%)", 0, 20, 9, key="off") / 100.0
     with c2:
         viability = st.slider("Cell Viability (%)", 50, 100, 90, key="viability") / 100.0
-        cost = st.select_slider(
-            "Cost & Scalability (1=Low Cost, 5=High Cost)",
-            options=[1, 2, 3, 4, 5],
-            value=3,
-            key="cost"
-        )
+        cost = st.select_slider("Cost & Scalability (1=Low Cost, 5=High Cost)", options=[1,2,3,4,5], value=3, key="cost")
 
-    # Advanced toggle OUTSIDE the form so it expands instantly
     show_advanced = st.checkbox("Show advanced controls", value=False, key="show_advanced")
 
     if show_advanced:
         st.subheader("Advanced Controls")
         ac1, ac2 = st.columns(2)
         with ac1:
-            nuclease = st.selectbox(
-                "Nuclease (for report only)",
-                ["SpCas9", "SaCas9", "AsCas12a", "LbCas12a"],
-                key="nuclease"
-            )
+            nuclease = st.selectbox("Nuclease (for report only)", ["SpCas9", "SaCas9", "AsCas12a", "LbCas12a"], key="nuclease")
             show_probs = st.checkbox("Show raw model class probabilities", value=True, key="show_probs")
             use_heuristic = st.checkbox("Use weighted heuristic instead of model", value=False, key="use_heuristic")
         with ac2:
@@ -242,7 +242,7 @@ with right:
         fig.savefig(radar_path, dpi=150, bbox_inches="tight")
         st.pyplot(fig)
 
-        # ----- Persist PDF in session_state -----
+        # ----- Persist PDF in session_state (COERCED TO BYTES) -----
         inputs = {
             "Target Organ": organ,
             "Gene Mutation": mutation,
@@ -263,8 +263,8 @@ with right:
             else:
                 inputs["Decision Mode"] = "Model"
 
-        pdf_bytes = generate_pdf_report(inputs, get_mutation_summary(mutation), radar_path, output_path=None)
-        st.session_state["pdf_bytes"] = pdf_bytes
+        raw_pdf = generate_pdf_report(inputs, get_mutation_summary(mutation), radar_path, output_path=None)
+        st.session_state["pdf_bytes"] = ensure_bytes(raw_pdf)     # <<< important
         st.session_state["pdf_name"] = "Genovate_Report.pdf"
         st.success("Report generated. Use the download area below ⬇️")
 
@@ -274,7 +274,7 @@ st.subheader("📄 Download Summary Report")
 if "pdf_bytes" in st.session_state:
     st.download_button(
         "📥 Download PDF",
-        data=st.session_state["pdf_bytes"],
+        data=ensure_bytes(st.session_state["pdf_bytes"]),  # <<< important
         file_name=st.session_state.get("pdf_name", "Genovate_Report.pdf"),
         mime="application/pdf",
         use_container_width=True,
