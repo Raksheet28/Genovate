@@ -32,13 +32,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ---------- Sidebar Nav ----------
-st.sidebar.page_link("pages/1_Home.py", label="🏠 Home")
-st.sidebar.page_link("pages/2_Simulation.py", label="🎯 Simulation")
-st.sidebar.page_link("pages/3_Gene_Detection.py", label="🧪 Gene Detection")
-st.sidebar.page_link("pages/4_Sequence_Viewer.py", label="🧬 Sequence Viewer")
-st.sidebar.page_link("pages/5_Learning_Mode.py", label="📘 Learning Mode")
-
 # ========= UI helper =========
 def render_confidence_card(conf: float):
     if conf >= 85:
