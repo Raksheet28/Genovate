@@ -1,241 +1,172 @@
-# pages/1_Home.py
+# streamlit_app.py
 import streamlit as st
-from datetime import datetime
+import os
 
 st.set_page_config(
-    page_title="Genovate — CRISPR Delivery & Gene Analysis",
+    page_title="Genovate • CRISPR Delivery Platform",
     page_icon="🧬",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# ---------------------------
-# Neon "lightsaber" theme CSS
-# ---------------------------
-st.markdown(
-    """
-    <style>
-      :root{
-        --bg:#0a0c14;
-        --panel:#0f1220;
-        --glass:rgba(255,255,255,.06);
-        --ink:#eef1ff;
-        --muted:#b8c1ff;
-        --edge:rgba(255,255,255,.12);
-        --laser-purple:#cdb4ff;
-        --laser-green:#b6ffc0;
-        --glow-purple:0 0 32px rgba(205,180,255,.55), 0 0 68px rgba(205,180,255,.24);
-        --glow-green:0 0 32px rgba(182,255,192,.55), 0 0 68px rgba(182,255,192,.22);
-      }
+# ====== THEME (sleek, neon lightsaber accents) ======
+st.markdown("""
+<style>
+:root {
+  --bg:#0f0f14;
+  --panel:#14141d;
+  --muted:#9aa0a6;
+  --accent:#8a5cf6;      /* neon purple */
+  --accent2:#4EE59E;     /* neon green */
+  --card:#171725;
+  --border: #26263a;
+}
+html, body, [data-testid="stAppViewContainer"] {
+  background: radial-gradient(1200px 800px at 15% -10%, rgba(138,92,246,0.12), transparent 60%),
+              radial-gradient(1200px 800px at 115% 10%, rgba(78,229,158,0.12), transparent 60%),
+              var(--bg)!important;
+}
+[data-testid="stHeader"] { background: rgba(0,0,0,0); }
+.block-container { padding-top: 1.5rem; }
+h1,h2,h3,h4 { color: #e8e8ff; }
+p, li, label, span, .stCaption, .stMarkdown, .stText, .st-emotion-cache { color: #d6d7e0; }
 
-      .stApp{
-        background:
-          radial-gradient(1200px 700px at -10% -10%, rgba(205,180,255,.12), transparent 60%),
-          radial-gradient(1000px 700px at 110% 10%, rgba(182,255,192,.10), transparent 60%),
-          var(--bg)!important;
-      }
+.hero {
+  padding: 2rem 2rem 1.5rem 2rem;
+  border-radius: 16px;
+  background:
+    linear-gradient(135deg, rgba(138,92,246,0.08), rgba(78,229,158,0.08));
+  border: 1px solid var(--border);
+  box-shadow: 0 0 40px rgba(138,92,246,0.08), 0 0 60px rgba(78,229,158,0.06);
+}
+.hero h1 {
+  font-size: 2.2rem;
+  line-height: 1.2;
+  margin: 0 0 0.4rem 0;
+}
+.sub { color: var(--muted); margin: 0.2rem 0 0.8rem 0; }
 
-      .hero{
-        position:relative; overflow:hidden;
-        padding:2.6rem 2.2rem;
-        border-radius:22px;
-        border:1px solid var(--edge);
-        background:linear-gradient(180deg, rgba(18,20,36,.85), rgba(12,16,30,.9));
-      }
-      .hero:before, .hero:after{
-        content:"";
-        position:absolute; inset:auto auto -40% -20%;
-        width:580px; height:580px; border-radius:50%;
-        background:radial-gradient(closest-side, rgba(205,180,255,.22), transparent 60%);
-        filter:blur(18px);
-      }
-      .hero:after{
-        inset:-35% -15% auto auto;
-        background:radial-gradient(closest-side, rgba(182,255,192,.20), transparent 60%);
-      }
+.badge {
+  display:inline-block;
+  padding: 0.28rem 0.55rem;
+  border-radius: 999px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  font-size: 0.78rem;
+  background: linear-gradient(90deg, rgba(138,92,246,0.18), rgba(78,229,158,0.18));
+  border: 1px solid var(--border);
+  color: #e8e8ff;
+}
 
-      .brand{
-        font-weight:900; letter-spacing:.3px;
-        font-size:2.8rem; line-height:1.05; margin:0 0 .5rem 0;
-        background:linear-gradient(90deg, var(--laser-purple), #e6fffb, var(--laser-green));
-        -webkit-background-clip:text; background-clip:text; color:transparent;
-        text-shadow: 0 0 22px rgba(205,180,255,.25);
-      }
-      .tagline{ color:var(--muted); font-size:1.08rem; margin:.15rem 0; }
+.tile {
+  padding: 1.1rem 1.1rem 0.9rem 1.1rem;
+  border-radius: 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+}
+.tile:hover {
+  transform: translateY(-2px);
+  border-color: rgba(138,92,246,0.5);
+  box-shadow: 0 6px 22px rgba(138,92,246,0.12), inset 0 0 0 1px rgba(78,229,158,0.10);
+}
+.tile h3 { margin: 0.1rem 0 0.35rem 0; font-size: 1.05rem; color:#f0efff; }
+.tile p { margin: 0 0 .7rem 0; font-size: 0.94rem; color:#cdd0dc; }
 
-      .chip{
-        display:inline-block; margin:.25rem .4rem .25rem 0;
-        padding:.34rem .7rem; border-radius:999px;
-        border:1px solid var(--edge); color:#e8edff;
-        background:rgba(255,255,255,.04); font-weight:700; font-size:.78rem;
-      }
+.cta-row a button {
+  width: 100%;
+  border-radius: 10px !important;
+  border: 1px solid var(--border) !important;
+  background: linear-gradient(90deg, rgba(138,92,246,0.22), rgba(78,229,158,0.22)) !important;
+  color: #fff !important;
+}
 
-      .panel{
-        padding:1.2rem 1.1rem; border-radius:16px;
-        background:linear-gradient(180deg, rgba(18,22,40,.8), rgba(15,18,34,.9));
-        border:1px solid var(--edge);
-      }
-      .panel h4{ color:var(--ink); margin:.1rem 0 .5rem 0; }
-      .panel p{ color:#c9d2ff; margin:0; font-size:.98rem; }
+.sidebar-title {
+  font-weight: 700; color: #e8e8ff; margin-bottom: .4rem;
+}
+.sidebar-sub { color: var(--muted); margin-bottom: .6rem; }
+</style>
+""", unsafe_allow_html=True)
 
-      .cta{
-        width:100%; padding:.95rem 1rem; border-radius:14px; border:0;
-        font-weight:900; letter-spacing:.2px; cursor:pointer;
-        color:#0c1224; background:linear-gradient(90deg, var(--laser-purple), var(--laser-green));
-        box-shadow: var(--glow-purple), var(--glow-green);
-      }
-      .cta:hover{ filter:brightness(1.06); }
-      .cta.secondary{
-        color:#e8f0ff; background:rgba(255,255,255,.06);
-        border:1px solid var(--edge); box-shadow:none;
-      }
+# ====== SIDEBAR NAV (use ONLY page_link; do not use switch_page) ======
+st.sidebar.markdown('<div class="sidebar-title">Genovate</div>', unsafe_allow_html=True)
+st.sidebar.markdown('<div class="sidebar-sub">Navigate</div>', unsafe_allow_html=True)
+st.sidebar.page_link("streamlit_app.py", label="🏠 Home")
+st.sidebar.page_link("pages/2_Simulation.py", label="🎯 Simulation")
+st.sidebar.page_link("pages/3_Gene_Detection.py", label="🧪 Gene Detection")
+st.sidebar.page_link("pages/4_Sequence_Viewer.py", label="🧬 Sequence Viewer")
+st.sidebar.page_link("pages/5_Learning_Mode.py", label="📘 Learning Mode")
 
-      .kpi{
-        padding:.8rem 1rem; border-radius:12px; border:1px solid var(--edge);
-        background:rgba(255,255,255,.03); color:#e3eaff; font-weight:800;
-      }
-      .dim{ color:#a9b4ff; font-weight:600; }
+# ====== HERO / LANDING ======
+st.markdown("""
+<div class="hero">
+  <span class="badge">Precision CRISPR • Modern tooling</span>
+  <h1>Genovate</h1>
+  <p class="sub">
+    A sleek workbench for CRISPR delivery simulation, gene detection, and sequence exploration —
+    built to help scientists and students move faster with clarity and confidence.
+  </p>
+</div>
+""", unsafe_allow_html=True)
 
-      .block-container{ padding-top:.6rem; }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+# ====== VALUE PROPS & QUICK NAV ======
+col1, col2, col3 = st.columns(3, gap="large")
 
-# --------------------------------
-# Small helper: safe page switching
-# --------------------------------
-def go(page_py: str) -> None:
-    """
-    Try st.switch_page('pages/XYZ.py'). If unavailable, show a hint.
-    """
-    try:
-        st.switch_page(f"pages/{page_py}")
-    except Exception:
-        st.warning("Navigation API not available here. Use the **built-in pages menu** (top-left) to switch pages.")
-
-# ---------------------------
-# Sidebar (explicit navigation)
-# ---------------------------
-with st.sidebar:
-    st.markdown("### ⚡ Quick Nav")
-    if st.button("🎯 Simulation", use_container_width=True):
-        go("2_Simulation.py")
-    if st.button("🧪 Gene Detection", use_container_width=True):
-        go("3_Gene_Detection.py")
-    if st.button("🧫 Sequence Viewer", use_container_width=True):
-        go("4_Sequence_Viewer.py")
-    if st.button("📘 Learning Mode", use_container_width=True):
-        go("5_Learning_Mode.py")
-    st.markdown("---")
-    st.caption("If these buttons do nothing, click the default **Pages** list in the Streamlit sidebar header.")
-
-# ---------------------------
-# HERO
-# ---------------------------
-st.markdown(
-    """
-    <div class="hero">
-      <div class="brand">Genovate</div>
-      <div class="tagline">CRISPR delivery decision-support • Fast gene detection • Sequence insight • One-click PDFs</div>
-      <div class="tagline">Built for researchers, clinicians, and students who need answers fast — and slides even faster.</div>
-      <div style="margin-top:.9rem;">
-        <span class="chip">LNP vs Electroporation</span>
-        <span class="chip">Confidence Scoring</span>
-        <span class="chip">BLAST Summaries</span>
-        <span class="chip">PAM Highlighting</span>
-        <span class="chip">Unicode-Safe PDF</span>
-      </div>
+with col1:
+    st.markdown("""
+    <div class="tile">
+      <h3>🎯 Simulation</h3>
+      <p>Compare LNP vs Electroporation. Try advanced weighted heuristics, blend with your inputs, and export a polished PDF.</p>
     </div>
-    """,
-    unsafe_allow_html=True,
-)
+    """, unsafe_allow_html=True)
+    st.page_link("pages/2_Simulation.py", label="🚀 Open Simulation", icon="🧪")
 
-# ---------------------------
-# Primary CTAs
-# ---------------------------
-c1, c2, c3, c4 = st.columns(4)
-with c1:
-    if st.button("🚀 Open Simulation", key="cta_sim", use_container_width=True):
-        go("2_Simulation.py")
-with c2:
-    if st.button("🧪 Run Gene Detection", key="cta_detect", use_container_width=True):
-        go("3_Gene_Detection.py")
-with c3:
-    if st.button("🧫 Sequence Viewer", key="cta_seq", use_container_width=True):
-        go("4_Sequence_Viewer.py")
-with c4:
-    if st.button("📘 Learning Mode", key="cta_learn", use_container_width=True):
-        go("5_Learning_Mode.py")
+with col2:
+    st.markdown("""
+    <div class="tile">
+      <h3>🧪 Gene Detection</h3>
+      <p>Paste a DNA snippet, BLAST against *H. sapiens*-biased db, and preview top matches with identity %.</p>
+    </div>
+    """, unsafe_allow_html=True)
+    st.page_link("pages/3_Gene_Detection.py", label="🔎 Detect Gene", icon="🧬")
 
-st.write("")
+with col3:
+    st.markdown("""
+    <div class="tile">
+      <h3>🧬 Sequence Viewer</h3>
+      <p>Fetch accessions, render the first N bases, auto-highlight PAMs (NGG by default), and inspect context.</p>
+    </div>
+    """, unsafe_allow_html=True)
+    st.page_link("pages/4_Sequence_Viewer.py", label="👀 Open Viewer", icon="📄")
 
-# ---------------------------
-# Value props (cards)
-# ---------------------------
-p1, p2, p3 = st.columns(3)
-with p1:
-    st.markdown(
-        """
-        <div class="panel">
-          <h4>Transparent Decisions</h4>
-          <p>Compare the learned model against a weighted heuristic you can tune. See why a method wins and export the reasoning.</p>
-        </div>
-        """, unsafe_allow_html=True)
-with p2:
-    st.markdown(
-        """
-        <div class="panel">
-          <h4>BLAST, Simplified</h4>
-          <p>Paste ≥120 bp, get top hits with identity summaries. Triage fast, then deep-dive in your preferred tools.</p>
-        </div>
-        """, unsafe_allow_html=True)
-with p3:
-    st.markdown(
-        """
-        <div class="panel">
-          <h4>Sequence Insight</h4>
-          <p>Highlight NGG PAMs instantly on GenBank accessions. Copy snippets for downstream CRISPR design.</p>
-        </div>
-        """, unsafe_allow_html=True)
+st.markdown("")
 
-st.write("")
-
-# ---------------------------
-# Mini KPIs
-# ---------------------------
-k1, k2, k3 = st.columns(3)
-with k1:
-    st.markdown('<div class="kpi">⏱️  <span class="dim">Report time</span>: ~2–3 min</div>', unsafe_allow_html=True)
-with k2:
-    st.markdown('<div class="kpi">📄  <span class="dim">PDF</span>: DejaVu Sans (Unicode)</div>', unsafe_allow_html=True)
-with k3:
-    st.markdown('<div class="kpi">🧪  <span class="dim">Use cases</span>: Teaching, prototyping</div>', unsafe_allow_html=True)
+# ====== STORY / HOW-TO ======
+l, r = st.columns([1.1, 1], gap="large")
+with l:
+    st.subheader("What is Genovate?")
+    st.write(
+        "Genovate is a compact, opinionated toolkit for **CRISPR delivery decisions** and **lightweight gene analysis**. "
+        "Use it to simulate delivery tradeoffs (efficiency, off-target risk, viability), quickly surface putative gene matches, "
+        "and visualize sequences with PAM highlights — then export clean PDFs for lab notes or stakeholder updates."
+    )
+    st.markdown("**How to use it**")
+    st.markdown("- Head to **Simulation** to choose an organ & mutation, tweak parameters, and get a recommended delivery method with confidence.\n"
+                "- Try **Advanced Controls** to blend baselines with your inputs or switch to a weighted heuristic.\n"
+                "- Use **Gene Detection** to BLAST a fragment and skim the top hits.\n"
+                "- Explore **Sequence Viewer** for quick context and PAM motifs.")
+with r:
+    st.subheader("Why I built it")
+    st.write(
+        "I created Genovate to make early-stage CRISPR decisions **simpler, faster, and clearer**. "
+        "I wanted a tool that felt modern but stayed honest about uncertainty — something that helps me "
+        "reason about delivery choices without drowning in boilerplate. Next up: richer model priors, better organ-specific LNP profiles, "
+        "and exportable notebooks for reproducibility."
+    )
+    st.markdown("**Future goals**")
+    st.markdown("- Expand training data and add more delivery vectors.\n"
+                "- Organ/mutation-conditioned profiles and uncertainty summaries.\n"
+                "- Notebook exports and versioned reports for auditability.")
 
 st.markdown("---")
-
-# ---------------------------
-# Story & How-to
-# ---------------------------
-col_a, col_b = st.columns([1.2, 1])
-with col_a:
-    st.subheader("Why I built Genovate")
-    st.markdown(
-        """
-        I wanted a **fast, transparent, and clean** way to make CRISPR delivery choices and share them.
-        Lab decisions often live in scattered notes; Genovate brings them into one place with a **one-click PDF**.
-        Roadmap: organ-specific priors, richer delivery models, and pluggable on/off-target scorers.
-        """
-    )
-with col_b:
-    st.subheader("How to use it")
-    st.markdown(
-        """
-        **Simulation** → set organ & mutation → adjust parameters/weights → compare radar chart & confidence → **Download PDF**.  
-        **Gene Detection** → paste sequence → scan hit table → copy accessions for follow-up.  
-        **Sequence Viewer** → fetch accession → inspect NGG highlights for design.
-        """
-    )
-
-st.markdown("---")
-st.caption(f"© {datetime.now().year} Genovate — Research prototype (not for clinical use)")
+st.caption("Built with ❤️ for researchers & learners. • © Genovate")
