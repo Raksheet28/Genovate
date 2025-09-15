@@ -1,4 +1,4 @@
-# streamlit_app.py
+# streamlit_app.py — Modern Landing (tiles as buttons, neon aesthetic)
 import os
 import streamlit as st
 
@@ -13,56 +13,103 @@ st.set_page_config(
 # ---------- Global CSS ----------
 st.markdown("""
 <style>
-/* App background gradient */
+/* App background gradient (soft neon "lightsaber" vibe) */
 .stApp {
-  background: radial-gradient(1200px 800px at 20% 10%, #b388ff22 0%, transparent 50%),
-              radial-gradient(1000px 600px at 80% 0%, #7ef9c222 0%, transparent 45%),
-              linear-gradient(180deg, #0b0f14 0%, #0b0f14 100%);
+  background:
+    radial-gradient(1000px 700px at 15% 8%, #b388ff22 0%, transparent 55%),
+    radial-gradient(900px 600px at 85% 5%, #7ef9c222 0%, transparent 50%),
+    linear-gradient(180deg, #0a0f15 0%, #0b0f14 100%);
   color: #e8eaf0;
 }
 
-/* Headings + accents */
-h1, h2, h3 { color: #eaeaff; letter-spacing: 0.2px; }
+/* Headings + links */
+h1, h2, h3 { color: #eef0ff; letter-spacing: .2px; }
 a { color: #cbb7ff; text-decoration: none; }
 a:hover { text-decoration: underline; }
 
-/* Cards */
-.card {
-  background: #101621;
-  border: 1px solid #1e2a3a;
-  border-radius: 14px;
-  padding: 1.2rem 1.3rem;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.35);
-}
+/* Hero card */
 .hero {
   background: linear-gradient(135deg, #1b2433 0%, #141c29 100%);
   border: 1px solid #243246;
-  border-radius: 16px;
+  border-radius: 18px;
   padding: 1.6rem 1.6rem;
+  box-shadow: 0 14px 38px rgba(0,0,0,.35);
 }
 
-/* Buttons */
-.stButton>button, .stDownloadButton>button {
-  background: #6e56cf; /* light purple saber */
-  color: white;
-  border: none;
-  border-radius: 10px;
-  padding: 0.6rem 1rem;
-  font-weight: 600;
-  transition: transform .05s ease-in-out, box-shadow .1s ease;
-  box-shadow: 0 0 20px #6e56cf55, inset 0 0 10px #8f7bf5aa;
+/* Generic glass card */
+.card {
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 16px;
+  padding: 1.2rem 1.3rem;
+  box-shadow: 0 10px 30px rgba(0,0,0,.35);
+}
+
+/* Tile (module) */
+.tile {
+  background: #101621;
+  border: 1px solid #1e2a3a;
+  border-radius: 16px;
+  padding: 1.1rem 1.1rem 1.0rem 1.1rem;
+  height: 100%;
+  transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+}
+.tile:hover {
+  transform: translateY(-2px);
+  border-color: #a78bfa55; /* purple edge */
+  box-shadow: 0 16px 38px -12px rgba(167,139,250,.28);
+}
+.tile h3 { margin:.1rem 0 .15rem 0; font-size:1.1rem; color:#ecf1ff; }
+.tile p { color:#cdd6e6; font-size:.95rem; margin:.1rem 0 .8rem 0; }
+
+/* Badges on tiles */
+.badge {
+  display:inline-block;
+  font-size:.78rem;
+  color:#dfe3ea;
+  border:1px solid rgba(255,255,255,.18);
+  border-radius:999px;
+  padding:.12rem .55rem;
+  margin:.08rem .35rem .25rem 0;
+  background: rgba(255,255,255,.04);
+}
+
+/* Gradient 'button' look for page links */
+.st-emotion-cache-1vt4y43 a, /* Streamlit page_link anchor in buttons area (safeguard) */
+.st-emotion-cache-1vt4y43 button,
+.stButton>button,
+.stDownloadButton>button {
+  background: linear-gradient(90deg, #6e56cf, #58ffc1); /* purple -> mint */
+  color: #0b1722 !important;
+  border: 0;
+  border-radius: 12px !important;
+  padding: .55rem 1rem !important;
+  font-weight: 800 !important;
+  box-shadow: 0 0 18px #6e56cf66, inset 0 0 10px #b8a9ff66;
+  transition: transform .06s ease-in-out, box-shadow .12s ease;
 }
 .stButton>button:hover, .stDownloadButton>button:hover {
   transform: translateY(-1px);
-  box-shadow: 0 0 26px #6e56cf88, inset 0 0 10px #b8a9ff88;
+  box-shadow: 0 0 26px #6e56cf99, inset 0 0 12px #b8a9ffaa;
 }
 
 /* Sidebar */
 .sidebar-title { font-weight: 700; font-size: 1.0rem; padding-top: .4rem; }
 .sidebar-sub { color: #95a1b5; margin-top: .5rem; font-size: .85rem; }
 .sidebar-sep { border-top: 1px solid #233148; margin: .6rem 0 .2rem 0; }
+
+/* Small footnote */
+.foot { text-align:center; color:#9aa6b2; margin-top:2rem; }
 </style>
 """, unsafe_allow_html=True)
+
+# ---------- Sidebar (light branding only) ----------
+with st.sidebar:
+    st.markdown("### Genovate")
+    if os.path.exists("gene_images/PKD1.png"):
+        st.image("gene_images/PKD1.png", use_container_width=True)
+    st.markdown('<div class="sidebar-sep"></div>', unsafe_allow_html=True)
+    st.caption("Research prototype — not for clinical use.")
 
 # ---------- Hero Section ----------
 st.markdown("### ")
@@ -71,59 +118,104 @@ with col_hero_left:
     st.markdown("""
     <div class="hero">
       <h1>Genovate</h1>
-      <h3 style="margin-top:-8px; color:#cbb7ff;">CRISPR delivery simulation & genomic viewers</h3>
-      <p style="color:#b7c2d5; line-height:1.5;">
-        Genovate helps you rapidly explore delivery choices (LNP vs Electroporation), visualize PAM sites,
-        and detect candidate genes from DNA. Blend heuristic weights with model outputs and export
-        polished PDFs for collaboration.
+      <h3 style="margin-top:-8px; color:#cbb7ff;">
+        Fast CRISPR delivery simulation & genomic utilities
+      </h3>
+      <p style="color:#b7c2d5; line-height:1.55;">
+        Explore delivery choices (LNP vs Electroporation), visualize PAM sites, and detect candidate genes
+        from DNA fragments. Blend heuristic weights with model outputs and export polished PDFs for collaboration.
       </p>
-      <div style="display:flex; gap:12px; flex-wrap:wrap;">
-        """, unsafe_allow_html=True)
-    st.page_link("pages/2_Simulation.py", label="🚀 Open Simulation")
-    st.page_link("pages/3_Gene_Detection.py", label="🧪 Gene Detection")
-    st.page_link("pages/4_Sequence_Viewer.py", label="🧬 Sequence Viewer")
-    st.page_link("pages/5_Learning_Mode.py", label="📘 Learning Mode")
-    st.markdown("</div></div>", unsafe_allow_html=True)
+    </div>
+    """, unsafe_allow_html=True)
 
 with col_hero_right:
     st.markdown("""
     <div class="card">
       <h3 style="margin-top:.2rem;">How to use Genovate</h3>
       <ul style="color:#c2cad8;">
-        <li><b>Simulation:</b> Set organ & gene, adjust clinical parameters, toggle <i>Advanced Controls</i>
+        <li><b>Simulation:</b> Choose organ & gene, adjust clinical parameters, toggle <i>Advanced Controls</i>
             to blend heuristics, then export a PDF report.</li>
         <li><b>Gene Detection:</b> Paste a DNA fragment (≥120bp) to get top BLAST matches.</li>
-        <li><b>Sequence Viewer:</b> Fetch a transcript by accession and highlight PAM motifs.</li>
+        <li><b>Sequence Viewer:</b> Fetch a transcript by accession and highlight PAM motifs inline.</li>
       </ul>
       <h3>Why I built it</h3>
       <p style="color:#b7c2d5;">
-        I wanted a fast, clean sandbox to iterate on CRISPR delivery choices and communicate results with
-        collaborators. This is a living project—next up: organ-aware priors, new nucleases, and richer reports.
+        I wanted a clean, fast sandbox to iterate on CRISPR delivery choices and share results
+        with collaborators. Next up: organ-aware priors, additional nucleases, and richer export packs.
       </p>
     </div>
     """, unsafe_allow_html=True)
 
-# ---------- Feature Cards ----------
+# ---------- Tiles (modules as buttons) ----------
 st.markdown("### ")
-f1, f2, f3 = st.columns(3)
-with f1:
+row1 = st.columns(2, gap="large")
+row2 = st.columns(2, gap="large")
+
+def tile(title, emoji, desc, badges, page_py, col):
+    with col:
+        st.markdown('<div class="tile">', unsafe_allow_html=True)
+        st.markdown(f"### {emoji} {title}")
+        st.markdown(f"<p>{desc}</p>", unsafe_allow_html=True)
+        for b in badges:
+            st.markdown(f"<span class='badge'>{b}</span>", unsafe_allow_html=True)
+        st.markdown("<div style='height:.6rem'></div>", unsafe_allow_html=True)
+        # Use Streamlit's page_link to navigate (keeps your working behavior)
+        st.page_link(f"pages/{page_py}", label=f"Open {title}")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+tile(
+    title="Simulation",
+    emoji="🎯",
+    desc="Compare LNP vs Electroporation using your clinical parameters, view radar plots, and export a PDF summary.",
+    badges=["Delivery trade-offs", "Confidence", "PDF export"],
+    page_py="2_Simulation.py",
+    col=row1[0],
+)
+tile(
+    title="Gene Detection",
+    emoji="🧪",
+    desc="Paste a DNA fragment (≥120 bp). BLASTN (human-biased) returns the top matches with identity scores.",
+    badges=["BLAST", "Top matches", "Quick triage"],
+    page_py="3_Gene_Detection.py",
+    col=row1[1],
+)
+tile(
+    title="Sequence Viewer",
+    emoji="🧬",
+    desc="Fetch a transcript by accession and highlight SpCas9 PAM (NGG) motifs inline for rapid gRNA ideation.",
+    badges=["NCBI fetch", "PAM (NGG)", "Inline highlighting"],
+    page_py="4_Sequence_Viewer.py",
+    col=row2[0],
+)
+tile(
+    title="Learning Mode",
+    emoji="📘",
+    desc="Short primers on CRISPR and delivery methods, with a concise reading list for deeper dives.",
+    badges=["CRISPR basics", "LNP vs Electro", "Reading list"],
+    page_py="5_Learning_Mode.py",
+    col=row2[1],
+)
+
+# ---------- Extra info band ----------
+st.markdown("### ")
+c1, c2, c3 = st.columns([1,1,1], gap="large")
+with c1:
     st.markdown("""
     <div class="card">
-      <h4>Delivery Tradeoffs</h4>
+      <h4>Delivery Trade-offs</h4>
       <p style="color:#b7c2d5;">Model vs weighted heuristic with blend controls to tune efficiency, off-target risk, and viability.</p>
     </div>""", unsafe_allow_html=True)
-with f2:
+with c2:
     st.markdown("""
     <div class="card">
       <h4>Polished Exports</h4>
-      <p style="color:#b7c2d5;">One-click PDF including radar comparisons and decision rationale.</p>
+      <p style="color:#b7c2d5;">One-click PDF including radar comparisons and decision rationale for quick sharing.</p>
     </div>""", unsafe_allow_html=True)
-with f3:
+with c3:
     st.markdown("""
     <div class="card">
       <h4>Genomic Utilities</h4>
-      <p style="color:#b7c2d5;">Quick PAM highlighting and BLAST-based gene hints for exploratory work.</p>
+      <p style="color:#b7c2d5;">PAM highlighting and BLAST-based gene hints to accelerate exploratory work.</p>
     </div>""", unsafe_allow_html=True)
 
-st.markdown("---")
-st.caption("Developed by Raksheet Gummakonda • Genovate")
+st.markdown("<div class='foot'>Developed by Raksheet Gummakonda • Genovate</div>", unsafe_allow_html=True)
