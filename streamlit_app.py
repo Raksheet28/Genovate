@@ -1,5 +1,4 @@
-# streamlit_app.py — Modern Landing (tiles as buttons, neon aesthetic)
-import os
+# streamlit_app.py — Modern Landing (tiles as buttons, neon aesthetic) — no custom sidebar
 import streamlit as st
 
 # ---------- Page config ----------
@@ -56,7 +55,7 @@ a:hover { text-decoration: underline; }
 }
 .tile:hover {
   transform: translateY(-2px);
-  border-color: #a78bfa55; /* purple edge */
+  border-color: #a78bfa55;
   box-shadow: 0 16px 38px -12px rgba(167,139,250,.28);
 }
 .tile h3 { margin:.1rem 0 .15rem 0; font-size:1.1rem; color:#ecf1ff; }
@@ -75,11 +74,11 @@ a:hover { text-decoration: underline; }
 }
 
 /* Gradient 'button' look for page links */
-.st-emotion-cache-1vt4y43 a, /* Streamlit page_link anchor in buttons area (safeguard) */
+.st-emotion-cache-1vt4y43 a,
 .st-emotion-cache-1vt4y43 button,
 .stButton>button,
 .stDownloadButton>button {
-  background: linear-gradient(90deg, #6e56cf, #58ffc1); /* purple -> mint */
+  background: linear-gradient(90deg, #6e56cf, #58ffc1);
   color: #0b1722 !important;
   border: 0;
   border-radius: 12px !important;
@@ -93,23 +92,10 @@ a:hover { text-decoration: underline; }
   box-shadow: 0 0 26px #6e56cf99, inset 0 0 12px #b8a9ffaa;
 }
 
-/* Sidebar */
-.sidebar-title { font-weight: 700; font-size: 1.0rem; padding-top: .4rem; }
-.sidebar-sub { color: #95a1b5; margin-top: .5rem; font-size: .85rem; }
-.sidebar-sep { border-top: 1px solid #233148; margin: .6rem 0 .2rem 0; }
-
 /* Small footnote */
 .foot { text-align:center; color:#9aa6b2; margin-top:2rem; }
 </style>
 """, unsafe_allow_html=True)
-
-# ---------- Sidebar (light branding only) ----------
-with st.sidebar:
-    st.markdown("### Genovate")
-    if os.path.exists("gene_images/PKD1.png"):
-        st.image("gene_images/PKD1.png", use_container_width=True)
-    st.markdown('<div class="sidebar-sep"></div>', unsafe_allow_html=True)
-    st.caption("Research prototype — not for clinical use.")
 
 # ---------- Hero Section ----------
 st.markdown("### ")
@@ -159,7 +145,6 @@ def tile(title, emoji, desc, badges, page_py, col):
         for b in badges:
             st.markdown(f"<span class='badge'>{b}</span>", unsafe_allow_html=True)
         st.markdown("<div style='height:.6rem'></div>", unsafe_allow_html=True)
-        # Use Streamlit's page_link to navigate (keeps your working behavior)
         st.page_link(f"pages/{page_py}", label=f"Open {title}")
         st.markdown("</div>", unsafe_allow_html=True)
 
