@@ -1,4 +1,4 @@
-# streamlit_app.py — Modern Landing (buttons, neon aesthetic, more info)
+# streamlit_app.py — Modern Landing (tiles as buttons, neon aesthetic) — no custom sidebar
 import streamlit as st
 
 # ---------- Page config ----------
@@ -12,7 +12,7 @@ st.set_page_config(
 # ---------- Global CSS ----------
 st.markdown("""
 <style>
-/* App background gradient (soft neon vibe) */
+/* App background gradient (soft neon "lightsaber" vibe) */
 .stApp {
   background:
     radial-gradient(1000px 700px at 15% 8%, #b388ff22 0%, transparent 55%),
@@ -44,37 +44,56 @@ a:hover { text-decoration: underline; }
   box-shadow: 0 10px 30px rgba(0,0,0,.35);
 }
 
-/* Gradient 'button' look */
-.stButton>button {
+/* Tile (module) */
+.tile {
+  background: #101621;
+  border: 1px solid #1e2a3a;
+  border-radius: 16px;
+  padding: 1.1rem 1.1rem 1.0rem 1.1rem;
+  height: 100%;
+  transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+}
+.tile:hover {
+  transform: translateY(-2px);
+  border-color: #a78bfa55;
+  box-shadow: 0 16px 38px -12px rgba(167,139,250,.28);
+}
+.tile h3 { margin:.1rem 0 .15rem 0; font-size:1.1rem; color:#ecf1ff; }
+.tile p { color:#cdd6e6; font-size:.95rem; margin:.1rem 0 .8rem 0; }
+
+/* Badges on tiles */
+.badge {
+  display:inline-block;
+  font-size:.78rem;
+  color:#dfe3ea;
+  border:1px solid rgba(255,255,255,.18);
+  border-radius:999px;
+  padding:.12rem .55rem;
+  margin:.08rem .35rem .25rem 0;
+  background: rgba(255,255,255,.04);
+}
+
+/* Gradient 'button' look for page links */
+.st-emotion-cache-1vt4y43 a,
+.st-emotion-cache-1vt4y43 button,
+.stButton>button,
+.stDownloadButton>button {
   background: linear-gradient(90deg, #6e56cf, #58ffc1);
-  color:#0b1722 !important;
+  color: #0b1722 !important;
   border: 0;
   border-radius: 12px !important;
-  padding: .7rem 1.3rem !important;
+  padding: .55rem 1rem !important;
   font-weight: 800 !important;
-  font-size: 1rem !important;
   box-shadow: 0 0 18px #6e56cf66, inset 0 0 10px #b8a9ff66;
   transition: transform .06s ease-in-out, box-shadow .12s ease;
 }
-.stButton>button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 0 28px #6e56cf99, inset 0 0 14px #b8a9ffaa;
+.stButton>button:hover, .stDownloadButton>button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 26px #6e56cf99, inset 0 0 12px #b8a9ffaa;
 }
 
-/* Button layout container */
-.button-card {
-  background: rgba(255,255,255,.04);
-  border: 1px solid rgba(255,255,255,.12);
-  border-radius: 14px;
-  padding: 1.1rem 1.2rem;
-  text-align: center;
-  margin-bottom: 1.2rem;
-}
-.button-card h3 { margin-bottom:.4rem; color:#eef0ff; }
-.button-card p { font-size:.9rem; color:#cfd6e2; margin-bottom:1rem; }
-
-/* Footnote */
-.foot { text-align:center; color:#9aa6b2; margin-top:2.2rem; }
+/* Small footnote */
+.foot { text-align:center; color:#9aa6b2; margin-top:2rem; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -104,7 +123,6 @@ with col_hero_right:
             to blend heuristics, then export a PDF report.</li>
         <li><b>Gene Detection:</b> Paste a DNA fragment (≥120bp) to get top BLAST matches.</li>
         <li><b>Sequence Viewer:</b> Fetch a transcript by accession and highlight PAM motifs inline.</li>
-        <li><b>Learning Mode:</b> Read primers on CRISPR basics and delivery methods, with curated external links.</li>
       </ul>
       <h3>Why I built it</h3>
       <p style="color:#b7c2d5;">
@@ -114,60 +132,75 @@ with col_hero_right:
     </div>
     """, unsafe_allow_html=True)
 
-# ---------- Page Buttons ----------
+# ---------- Tiles (modules as buttons) ----------
 st.markdown("### ")
-c1, c2 = st.columns(2, gap="large")
-c3, c4 = st.columns(2, gap="large")
+row1 = st.columns(2, gap="large")
+row2 = st.columns(2, gap="large")
 
-with c1:
-    st.markdown("<div class='button-card'>", unsafe_allow_html=True)
-    st.markdown("### 🎯 Simulation")
-    st.markdown("<p>Compare LNP vs Electroporation using your parameters, view radar plots, and export a PDF summary.</p>", unsafe_allow_html=True)
-    st.page_link("pages/2_Simulation.py", label="Open Simulation")
-    st.markdown("</div>", unsafe_allow_html=True)
+def tile(title, emoji, desc, badges, page_py, col):
+    with col:
+        st.markdown('<div class="tile">', unsafe_allow_html=True)
+        st.markdown(f"### {emoji} {title}")
+        st.markdown(f"<p>{desc}</p>", unsafe_allow_html=True)
+        for b in badges:
+            st.markdown(f"<span class='badge'>{b}</span>", unsafe_allow_html=True)
+        st.markdown("<div style='height:.6rem'></div>", unsafe_allow_html=True)
+        st.page_link(f"pages/{page_py}", label=f"Open {title}")
+        st.markdown("</div>", unsafe_allow_html=True)
 
-with c2:
-    st.markdown("<div class='button-card'>", unsafe_allow_html=True)
-    st.markdown("### 🧪 Gene Detection")
-    st.markdown("<p>Paste a DNA fragment (≥120 bp). BLASTN returns top matches with identity scores.</p>", unsafe_allow_html=True)
-    st.page_link("pages/3_Gene_Detection.py", label="Open Gene Detection")
-    st.markdown("</div>", unsafe_allow_html=True)
-
-with c3:
-    st.markdown("<div class='button-card'>", unsafe_allow_html=True)
-    st.markdown("### 🧬 Sequence Viewer")
-    st.markdown("<p>Fetch a transcript by accession and highlight SpCas9 PAM (NGG) motifs inline for gRNA ideation.</p>", unsafe_allow_html=True)
-    st.page_link("pages/4_Sequence_Viewer.py", label="Open Sequence Viewer")
-    st.markdown("</div>", unsafe_allow_html=True)
-
-with c4:
-    st.markdown("<div class='button-card'>", unsafe_allow_html=True)
-    st.markdown("### 📘 Learning Mode")
-    st.markdown("<p>CRISPR primers & delivery guides with a concise reading list for deeper exploration.</p>", unsafe_allow_html=True)
-    st.page_link("pages/5_Learning_Mode.py", label="Open Learning Mode")
-    st.markdown("</div>", unsafe_allow_html=True)
+tile(
+    title="Simulation",
+    emoji="🎯",
+    desc="Compare LNP vs Electroporation using your clinical parameters, view radar plots, and export a PDF summary.",
+    badges=["Delivery trade-offs", "Confidence", "PDF export"],
+    page_py="2_Simulation.py",
+    col=row1[0],
+)
+tile(
+    title="Gene Detection",
+    emoji="🧪",
+    desc="Paste a DNA fragment (≥120 bp). BLASTN (human-biased) returns the top matches with identity scores.",
+    badges=["BLAST", "Top matches", "Quick triage"],
+    page_py="3_Gene_Detection.py",
+    col=row1[1],
+)
+tile(
+    title="Sequence Viewer",
+    emoji="🧬",
+    desc="Fetch a transcript by accession and highlight SpCas9 PAM (NGG) motifs inline for rapid gRNA ideation.",
+    badges=["NCBI fetch", "PAM (NGG)", "Inline highlighting"],
+    page_py="4_Sequence_Viewer.py",
+    col=row2[0],
+)
+tile(
+    title="Learning Mode",
+    emoji="📘",
+    desc="Short primers on CRISPR and delivery methods, with a concise reading list for deeper dives.",
+    badges=["CRISPR basics", "LNP vs Electro", "Reading list"],
+    page_py="5_Learning_Mode.py",
+    col=row2[1],
+)
 
 # ---------- Extra info band ----------
 st.markdown("### ")
-f1, f2, f3 = st.columns(3, gap="large")
-with f1:
+c1, c2, c3 = st.columns([1,1,1], gap="large")
+with c1:
     st.markdown("""
     <div class="card">
       <h4>Delivery Trade-offs</h4>
-      <p style="color:#b7c2d5;">Blend heuristics & models to tune efficiency, off-target risk, and viability.</p>
+      <p style="color:#b7c2d5;">Model vs weighted heuristic with blend controls to tune efficiency, off-target risk, and viability.</p>
     </div>""", unsafe_allow_html=True)
-with f2:
+with c2:
     st.markdown("""
     <div class="card">
       <h4>Polished Exports</h4>
-      <p style="color:#b7c2d5;">One-click PDF including radar plots & rationale for fast collaboration.</p>
+      <p style="color:#b7c2d5;">One-click PDF including radar comparisons and decision rationale for quick sharing.</p>
     </div>""", unsafe_allow_html=True)
-with f3:
+with c3:
     st.markdown("""
     <div class="card">
       <h4>Genomic Utilities</h4>
-      <p style="color:#b7c2d5;">PAM highlighting & BLAST-based hints to accelerate exploratory work.</p>
+      <p style="color:#b7c2d5;">PAM highlighting and BLAST-based gene hints to accelerate exploratory work.</p>
     </div>""", unsafe_allow_html=True)
 
-# ---------- Footer ----------
 st.markdown("<div class='foot'>Developed by Raksheet Gummakonda • Genovate</div>", unsafe_allow_html=True)
