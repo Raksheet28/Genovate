@@ -73,25 +73,29 @@ a:hover { text-decoration: underline; }
   background: rgba(255,255,255,.04);
 }
 
-/* Glowing holographic button style */
-.holo-btn {
+/* Holographic button style (applied to st.page_link) */
+.stPageLink {
   display:inline-block;
   width:100%;
   text-align:center;
   padding:.7rem 1rem;
   margin-top:.5rem;
   font-weight:800;
-  color:#0b1722;
+  color:#0b1722 !important;
   background: linear-gradient(90deg, #6e56cf, #58ffc1);
   border-radius:14px;
   box-shadow: 0 0 20px #6e56cf66, inset 0 0 12px #b8a9ff66;
   transition: all .15s ease-in-out;
+  text-decoration:none !important;
 }
-.holo-btn:hover {
+.stPageLink:hover {
   transform: translateY(-2px) scale(1.02);
   box-shadow: 0 0 30px #6e56cfaa, inset 0 0 14px #c3b0ff99;
   cursor:pointer;
-  text-decoration:none;
+}
+.stPageLink span {
+  color:#0b1722 !important;
+  font-weight:800;
 }
 
 /* Small footnote */
@@ -139,15 +143,15 @@ st.markdown("### ")
 row1 = st.columns(2, gap="large")
 row2 = st.columns(2, gap="large")
 
-def tile(title, emoji, desc, badges, page_py, col):
+def tile(title, emoji, desc, badges, page_path, col):
     with col:
         st.markdown('<div class="tile">', unsafe_allow_html=True)
         st.markdown(f"### {emoji} {title}")
         st.markdown(f"<p>{desc}</p>", unsafe_allow_html=True)
         for b in badges:
             st.markdown(f"<span class='badge'>{b}</span>", unsafe_allow_html=True)
-        # Glow button styled with holo-btn
-        st.markdown(f"<a href='/pages/{page_py}' class='holo-btn'>Open {title}</a>", unsafe_allow_html=True)
+        # Proper navigation using st.page_link
+        st.page_link(page_path, label=f"Open {title}")
         st.markdown("</div>", unsafe_allow_html=True)
 
 tile(
@@ -155,7 +159,7 @@ tile(
     emoji="🎯",
     desc="Compare LNP vs Electroporation using your clinical parameters, view radar plots, and export a PDF summary.",
     badges=["Delivery trade-offs", "Confidence", "PDF export"],
-    page_py="2_Simulation.py",
+    page_path="pages/2_Simulation.py",
     col=row1[0],
 )
 tile(
@@ -163,7 +167,7 @@ tile(
     emoji="🧪",
     desc="Paste a DNA fragment (≥120 bp). BLASTN (human-biased) returns the top matches with identity scores.",
     badges=["BLAST", "Top matches", "Quick triage"],
-    page_py="3_Gene_Detection.py",
+    page_path="pages/3_Gene_Detection.py",
     col=row1[1],
 )
 tile(
@@ -171,7 +175,7 @@ tile(
     emoji="🧬",
     desc="Fetch a transcript by accession and highlight SpCas9 PAM (NGG) motifs inline for rapid gRNA ideation.",
     badges=["NCBI fetch", "PAM (NGG)", "Inline highlighting"],
-    page_py="4_Sequence_Viewer.py",
+    page_path="pages/4_Sequence_Viewer.py",
     col=row2[0],
 )
 tile(
@@ -179,7 +183,7 @@ tile(
     emoji="📘",
     desc="Short primers on CRISPR and delivery methods, with a concise reading list for deeper dives.",
     badges=["CRISPR basics", "LNP vs Electro", "Reading list"],
-    page_py="5_Learning_Mode.py",
+    page_path="pages/5_Learning_Mode.py",
     col=row2[1],
 )
 
