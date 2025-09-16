@@ -1,4 +1,4 @@
-# streamlit_app.py — Modern Landing (tiles as buttons, neon aesthetic) — no custom sidebar
+# streamlit_app.py — Modern Landing (tiles as glowing holographic buttons)
 import streamlit as st
 
 # ---------- Page config ----------
@@ -44,7 +44,7 @@ a:hover { text-decoration: underline; }
   box-shadow: 0 10px 30px rgba(0,0,0,.35);
 }
 
-/* Tile (module) */
+/* Tile (module container) */
 .tile {
   background: #101621;
   border: 1px solid #1e2a3a;
@@ -73,23 +73,25 @@ a:hover { text-decoration: underline; }
   background: rgba(255,255,255,.04);
 }
 
-/* Gradient 'button' look for page links */
-.st-emotion-cache-1vt4y43 a,
-.st-emotion-cache-1vt4y43 button,
-.stButton>button,
-.stDownloadButton>button {
+/* Glowing holographic button style */
+.holo-btn {
+  display:inline-block;
+  width:100%;
+  text-align:center;
+  padding:.7rem 1rem;
+  margin-top:.5rem;
+  font-weight:800;
+  color:#0b1722;
   background: linear-gradient(90deg, #6e56cf, #58ffc1);
-  color: #0b1722 !important;
-  border: 0;
-  border-radius: 12px !important;
-  padding: .55rem 1rem !important;
-  font-weight: 800 !important;
-  box-shadow: 0 0 18px #6e56cf66, inset 0 0 10px #b8a9ff66;
-  transition: transform .06s ease-in-out, box-shadow .12s ease;
+  border-radius:14px;
+  box-shadow: 0 0 20px #6e56cf66, inset 0 0 12px #b8a9ff66;
+  transition: all .15s ease-in-out;
 }
-.stButton>button:hover, .stDownloadButton>button:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 0 26px #6e56cf99, inset 0 0 12px #b8a9ffaa;
+.holo-btn:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 0 30px #6e56cfaa, inset 0 0 14px #c3b0ff99;
+  cursor:pointer;
+  text-decoration:none;
 }
 
 /* Small footnote */
@@ -144,8 +146,8 @@ def tile(title, emoji, desc, badges, page_py, col):
         st.markdown(f"<p>{desc}</p>", unsafe_allow_html=True)
         for b in badges:
             st.markdown(f"<span class='badge'>{b}</span>", unsafe_allow_html=True)
-        st.markdown("<div style='height:.6rem'></div>", unsafe_allow_html=True)
-        st.page_link(f"pages/{page_py}", label=f"Open {title}")
+        # Glow button styled with holo-btn
+        st.markdown(f"<a href='/pages/{page_py}' class='holo-btn'>Open {title}</a>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
 tile(
