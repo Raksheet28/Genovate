@@ -66,8 +66,8 @@ with c3:
 st.markdown("")
 
 # ---------- Tabs ----------
-tab_basics, tab_delivery, tab_checklist, tab_glossary, tab_links = st.tabs(
-    ["🔬 CRISPR Basics", "🚚 Delivery Methods", "🛠️ Design Checklist", "📖 Glossary", "🌐 Resources"]
+tab_basics, tab_delivery, tab_checklist, tab_glossary, tab_links, tab_mutations = st.tabs(
+    ["🔬 CRISPR Basics", "🚚 Delivery Methods", "🛠️ Design Checklist", "📖 Glossary", "🌐 Resources", "🧬 Mutation Stats"]
 )
 
 # --- Basics ---
@@ -154,6 +154,22 @@ with tab_links:
         "- [Nature CRISPR Guide](https://www.nature.com/subjects/crispr-cas9)\n"
         "- [NCBI Bookshelf: Genome Editing](https://www.ncbi.nlm.nih.gov/books/)"
     )
+
+# --- Mutation Stats ---
+with tab_mutations:
+    st.markdown("### Genetic Mutation Prevalence")
+
+    mut_df = pd.DataFrame([
+        ["BRCA1 (Breast Cancer Risk)", "0.25%", "Rare", "1 in 400"],
+        ["CFTR ΔF508 (Cystic Fibrosis)", "4%", "Carrier common", "1 in 25 (Caucasian ancestry)"],
+        ["Sickle Cell (HbS)", "8–10%", "Moderately common", "1 in 12 (African ancestry)"],
+        ["Huntington’s (HTT expansion)", "0.005%", "Ultra-rare", "1 in 20,000"],
+        ["APOE4 (Alzheimer’s risk allele)", "15–20%", "Common", "1 in 5"],
+    ], columns=["Mutation","% of Population","Rarity","Approx Probability"])
+
+    st.dataframe(mut_df, use_container_width=True, hide_index=True)
+
+    st.info("Note: Prevalence varies by ancestry and population. Data shown is approximate for educational use.")
 
 # ---------- Footer ----------
 st.markdown("---")
