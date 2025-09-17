@@ -6,3 +6,5 @@ scikit-learn
 fpdf2
 Pillow
 biopython
+fpdf
+graphviz
