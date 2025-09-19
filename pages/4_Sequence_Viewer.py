@@ -5,6 +5,9 @@ import pandas as pd
 
 st.set_page_config(page_title="Genovate • Sequence Viewer", page_icon="🧬", layout="wide")
 
+from ui_nav import render_top_nav
+render_top_nav(active="pages/4_Sequence_Viewer.py")  # change the string to the current page's label
+
 st.title("🧬 Genomic Sequence Viewer (PAM highlights)")
 st.caption("Shows the first N bases of the selected accession and highlights NGG motifs (SpCas9 PAM).")
 
