@@ -18,9 +18,6 @@ from genovate_backend import (
 # ---------- Page config ----------
 st.set_page_config(page_title="Genovate • Simulation", page_icon="🎯", layout="wide")
 
-from ui_nav import render_top_nav
-render_top_nav(active="pages/2_Simulation.py")  # change the string to the current page's label
-
 # ---------- CSS ----------
 st.markdown("""
 <style>
