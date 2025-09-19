@@ -3,6 +3,9 @@ import streamlit as st
 
 st.set_page_config(page_title="Genovate • Home", page_icon="🏠", layout="wide")
 
+from ui_nav import render_top_nav
+render_top_nav(active="1_Home.py")  # change the string to the current page's label
+
 st.markdown("## Welcome back to Genovate")
 st.write("Use the links above to jump directly to a workflow.")
 st.page_link("pages/2_Simulation.py", label="🚀 Open Simulation")
