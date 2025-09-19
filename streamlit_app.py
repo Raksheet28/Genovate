@@ -9,9 +9,6 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-from ui_nav import render_top_nav
-render_top_nav(active="streamlit_app.py")  # change the string to the current page's label
-
 # ---------- Global CSS ----------
 st.markdown("""
 <style>
