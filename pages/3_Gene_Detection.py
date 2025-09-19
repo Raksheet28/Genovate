@@ -8,6 +8,9 @@ from genovate_backend import detect_gene_from_sequence
 
 st.set_page_config(page_title="Genovate • Gene Detection", page_icon="🧪", layout="wide")
 
+from ui_nav import render_top_nav
+render_top_nav(active="pages/3_Gene_Detection.py")  # change the string to the current page's label
+
 # ---------- Styling (neon + clean) ----------
 st.markdown("""
 <style>
